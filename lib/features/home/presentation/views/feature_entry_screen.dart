@@ -1,0 +1,343 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/theme/wayhunter_palette.dart';
+import '../../../../core/widgets/demo_map.dart';
+import '../../../../core/widgets/feature_scaffold.dart';
+import '../../../../core/widgets/glass_panel.dart';
+import '../../../../core/widgets/neon_button.dart';
+import '../../../auth/presentation/viewmodels/auth_view_model.dart';
+import '../../../traveller/presentation/views/traveller_screens.dart';
+import '../viewmodels/home_view_model.dart';
+
+/// Phase 1 entry previews. Full module workflows are inventoried for later phases.
+class FeatureEntryScreen extends ConsumerWidget {
+  const FeatureEntryScreen({super.key, required this.module, this.placeId});
+  final WayhunterModule module;
+  final String? placeId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (module == WayhunterModule.traveller) {
+      return TravellerLandingScreen(placeId: placeId);
+    }
+    final (title, phase, description, icon) = switch (module) {
+      WayhunterModule.traveller => ('Traveller', '', '', Icons.route_outlined),
+      WayhunterModule.hunter => (
+        'Location Hunter',
+        'Phase 3',
+        'Discover hidden places with location and photo evidence. District checks, capture and moderation will be clearly labeled demonstrations in Phase 3.',
+        Icons.explore_outlined,
+      ),
+      WayhunterModule.game => (
+        'Game Zone',
+        'Phase 4',
+        'Create or join location challenges. Game creation, proof and winner simulation arrive in Phase 4.',
+        Icons.sports_esports_outlined,
+      ),
+      WayhunterModule.common => (
+        'Explore',
+        'Later phase',
+        'More adventures are on the way.',
+        Icons.explore_outlined,
+      ),
+    };
+    final matches = ref
+        .watch(homeViewModelProvider)
+        .content
+        .places
+        .where((p) => p.id == placeId);
+    return FeatureScaffold(
+      title: title,
+      subtitle: 'DEMO · $phase entry preview',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GlassPanel(
+            accent: module.accent,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(icon, color: module.accent, size: 34),
+                const SizedBox(height: 14),
+                Text(
+                  'Your next adventure starts here',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 10),
+                Text(description),
+                const SizedBox(height: 12),
+                const Text(
+                  'This is a navigable entry preview. The full workflow is scheduled for its own phase.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFFC5DAE7)),
+                ),
+              ],
+            ),
+          ),
+          if (matches.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            GlassPanel(
+              accent: module.accent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'FROM YOUR SEARCH',
+                    style: TextStyle(fontSize: 10, letterSpacing: 1.4),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    matches.first.name,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  Text(
+                    '${matches.first.district} · ${matches.first.category} · demo place',
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          Text(
+            'Explore the map',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
+          const DemoMap(),
+          const SizedBox(height: 12),
+          const Text(
+            'Approximate demo places. This map does not verify your district or provide road directions, live traffic or nearby search.',
+            style: TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 22),
+          NeonButton(
+            label: 'Back to Home',
+            accent: module.accent,
+            icon: Icons.home_outlined,
+            onPressed: () => context.go('/home'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProfileEntryScreen extends ConsumerWidget {
+  const ProfileEntryScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authViewModelProvider).user;
+    return FeatureScaffold(
+      title: 'Your explorer profile',
+      subtitle: 'DEMO · Phase 5 entry preview',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GlassPanel(
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 35,
+                  backgroundImage: user?.avatarBytes == null
+                      ? null
+                      : MemoryImage(user!.avatarBytes!),
+                  child: user?.avatarBytes == null
+                      ? const Icon(Icons.person_outline, size: 40)
+                      : null,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  user?.name ?? '',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 4),
+                Text(user?.email ?? '', textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                const Text(
+                  'Profile tabs, editing and Settings are scheduled for Phase 5.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          NeonButton(
+            label: 'My Wallet preview',
+            icon: Icons.account_balance_wallet_outlined,
+            onPressed: () => context.push('/wallet'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => _signOut(context, ref),
+            icon: const Icon(Icons.logout),
+            label: const Text('Sign out'),
+          ),
+          TextButton(
+            onPressed: () => context.go('/home'),
+            child: const Text('Back to Home'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign out?'),
+        content: const Text(
+          'Your demo session will end. Your remembered email and permission choices stay on this device.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      ref.read(authViewModelProvider.notifier).signOut();
+    }
+  }
+}
+
+class WalletEntryScreen extends ConsumerWidget {
+  const WalletEntryScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authViewModelProvider).user;
+    return FeatureScaffold(
+      title: 'My Wallet',
+      subtitle: 'DEMO · Phase 6 entry preview',
+      child: GlassPanel(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Icon(
+              Icons.account_balance_wallet_outlined,
+              size: 38,
+              color: WayhunterPalette.hunterGold,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '${user?.hp ?? 0} HP  ·  ${user?.rc ?? 0} RC',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Local demo balances. The eight-screen redemption journey is scheduled for Phase 6. No real vouchers are issued or redeemable.',
+            ),
+            const SizedBox(height: 20),
+            NeonButton(
+              label: 'Back to Profile',
+              onPressed: () => context.go('/profile'),
+            ),
+            TextButton(
+              onPressed: () => context.go('/home'),
+              child: const Text('Back to Home'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class LeaderboardEntryScreen extends ConsumerWidget {
+  const LeaderboardEntryScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rankings = ref.watch(homeViewModelProvider).content.rankings;
+    return FeatureScaffold(
+      title: 'Leaderboard',
+      subtitle: 'DEMO · Sample standings · entry preview',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          GlassPanel(
+            child: Column(
+              children: rankings
+                  .map(
+                    (r) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(child: Text('${r.rank}')),
+                      title: Text(r.name),
+                      trailing: Text('${r.hp} HP'),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'These are local sample rankings. District and game leaderboard filters arrive with the Hunter and Game phases.',
+          ),
+          const SizedBox(height: 20),
+          NeonButton(
+            label: 'Back to Home',
+            onPressed: () => context.go('/home'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class NotificationsScreen extends ConsumerWidget {
+  const NotificationsScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(homeViewModelProvider);
+    return FeatureScaffold(
+      title: 'Notifications',
+      subtitle: 'Local demo updates',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final n in state.content.notifications)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: GlassPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      n.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(n.body),
+                    const SizedBox(height: 8),
+                    Text(
+                      state.readNotifications.contains(n.id)
+                          ? 'Read'
+                          : 'Unread',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          if (state.unreadCount > 0)
+            NeonButton(
+              label: 'Mark all as read',
+              onPressed: ref
+                  .read(homeViewModelProvider.notifier)
+                  .markNotificationsRead,
+            ),
+          TextButton(
+            onPressed: () => context.go('/home'),
+            child: const Text('Back to Home'),
+          ),
+        ],
+      ),
+    );
+  }
+}
