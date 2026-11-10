@@ -120,14 +120,10 @@ class GameSetupScreen extends ConsumerWidget {
 
 class GamePhotoScreen extends ConsumerWidget {
   const GamePhotoScreen({super.key});
-  Future<void> _take(
-    BuildContext context,
-    WidgetRef ref,
-    ImageSource source,
-  ) async {
+  Future<void> _take(BuildContext context, WidgetRef ref) async {
     try {
       final file = await ImagePicker().pickImage(
-        source: source,
+        source: ImageSource.camera,
         maxWidth: 1300,
         imageQuality: 83,
       );
@@ -137,7 +133,7 @@ class GamePhotoScreen extends ConsumerWidget {
       _vm(ref).attachCreationPhoto(GameEvidence(bytes: bytes, path: file.path));
     } catch (e) {
       if (context.mounted) {
-        showGameMessage(context, 'Could not access camera/gallery: $e');
+        showGameMessage(context, 'Could not access camera: $e');
       }
     }
   }
@@ -187,27 +183,11 @@ class GamePhotoScreen extends ConsumerWidget {
                         ),
                 ),
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: GameAction(
-                        text: 'Camera',
-                        icon: Icons.camera_alt,
-                        color: gameGreen,
-                        onTap: () => _take(context, ref, ImageSource.camera),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: GameAction(
-                        text: 'Gallery',
-                        icon: Icons.photo_library_outlined,
-                        color: gamePurple,
-                        outline: true,
-                        onTap: () => _take(context, ref, ImageSource.gallery),
-                      ),
-                    ),
-                  ],
+                GameAction(
+                  text: 'Open Camera',
+                  icon: Icons.camera_alt,
+                  color: gameGreen,
+                  onTap: () => _take(context, ref),
                 ),
                 const SizedBox(height: 8),
                 TextButton.icon(

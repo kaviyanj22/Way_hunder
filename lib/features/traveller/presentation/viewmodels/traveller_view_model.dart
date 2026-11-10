@@ -392,6 +392,7 @@ class TravellerViewModel extends Notifier<TravellerState> {
       people: d.people,
       budget: d.budget,
       method: d.method,
+      friendIds: List.unmodifiable(d.friendIds),
       customStops: Map.unmodifiable({
         for (final entry in d.customStops.entries)
           if (d.stops.contains(entry.key)) entry.key: entry.value,

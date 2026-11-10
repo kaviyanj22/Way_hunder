@@ -46,7 +46,10 @@ class ActiveTripDashboard extends ConsumerWidget {
         children: [
           ImageFiltered(
             imageFilter: ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-            child: Image.asset(AppAssets.homeBackground, fit: BoxFit.cover),
+            child: Image.asset(
+              AppAssets.travellerSoftBackground,
+              fit: BoxFit.cover,
+            ),
           ),
           const DecoratedBox(
             decoration: BoxDecoration(

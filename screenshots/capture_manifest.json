@@ -1,0 +1,182 @@
+[
+  {
+    "module": "auth",
+    "screen": "Login",
+    "route": "/sign-in",
+    "filename": "auth/01_login.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/01_login.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Login language dropdown",
+    "route": "/sign-in",
+    "filename": "auth/02_login_language.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/02_login_language.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Login missing fields",
+    "route": "/sign-in",
+    "filename": "auth/03_login_missing_fields.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/03_login_missing_fields.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Incorrect login credentials",
+    "route": "/sign-in",
+    "filename": "auth/04_login_incorrect.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/04_login_incorrect.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Register",
+    "route": "/register",
+    "filename": "auth/05_register.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/05_register.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Registration terms dialog",
+    "route": "/register",
+    "filename": "auth/06_register_terms.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/06_register_terms.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Register validation",
+    "route": "/register",
+    "filename": "auth/07_register_validation.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/07_register_validation.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Registration OTP",
+    "route": "/otp",
+    "filename": "auth/08_registration_otp.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/08_registration_otp.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Invalid OTP",
+    "route": "/otp",
+    "filename": "auth/09_invalid_otp.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/09_invalid_otp.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Registration success at Sign In",
+    "route": "/sign-in",
+    "filename": "auth/10_registration_success.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/10_registration_success.png"
+  },
+  {
+    "module": "auth",
+    "screen": "First-time permissions introduction",
+    "route": "/permissions",
+    "filename": "auth/11_permissions.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/11_permissions.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Forgot Password",
+    "route": "/forgot-password",
+    "filename": "auth/12_forgot_password.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/12_forgot_password.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Forgot Password validation",
+    "route": "/forgot-password",
+    "filename": "auth/13_forgot_validation.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/13_forgot_validation.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Recovery OTP",
+    "route": "/otp",
+    "filename": "auth/14_recovery_otp.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/14_recovery_otp.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Reset Password",
+    "route": "/reset-password",
+    "filename": "auth/15_reset_password.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/15_reset_password.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Reset password mismatch",
+    "route": "/reset-password",
+    "filename": "auth/16_reset_mismatch.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/16_reset_mismatch.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Password reset success",
+    "route": "/sign-in",
+    "filename": "auth/17_reset_success.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/17_reset_success.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Offline",
+    "route": "/offline",
+    "filename": "auth/18_offline.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/18_offline.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Cancel auth confirmation",
+    "route": "/cancel-auth",
+    "filename": "auth/19_cancel_auth.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/19_cancel_auth.png"
+  },
+  {
+    "module": "auth",
+    "screen": "Retry succeeds / Resume",
+    "route": "/connection-restored",
+    "filename": "auth/20_connection_restored.png",
+    "status": "Captured",
+    "notes": "",
+    "devicePath": "/data/user/0/com.example.wayhunter_mobile/code_cache/wayhunter_screen_export/auth/20_connection_restored.png"
+  }
+]

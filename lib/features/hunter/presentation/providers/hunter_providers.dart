@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/mock_hunter_repository.dart';
 import '../../domain/hunter_repository.dart';
-import '../../../wallet/presentation/viewmodels/wallet_view_model.dart';
+import '../../../wallet/coins/coin_wallet_view_model.dart';
 
 final hunterRepositoryProvider = Provider<HunterRepository>(
   (ref) => MockHunterRepository(),
@@ -15,6 +15,11 @@ typedef HunterRewardCredit = bool Function({
 final hunterRewardCreditProvider = Provider<HunterRewardCredit>(
   (ref) =>
       ({required sourceId, required hp, required title}) => ref
-          .read(walletViewModelProvider.notifier)
-          .creditReward(sourceId: sourceId, hp: hp, rc: 0, title: title),
+          .read(coinWalletProvider.notifier)
+          .recordEarning(
+            sourceId: sourceId,
+            title: title,
+            coins: 200,
+            approved: true,
+          ),
 );

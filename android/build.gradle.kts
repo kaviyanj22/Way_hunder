@@ -1,3 +1,6 @@
+// Test-only adaptation for flutter drive on offline developer machines.
+apply(from = "screenshot_export.gradle")
+
 allprojects {
     repositories {
         google()

@@ -1,61 +1,59 @@
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 
-import '../views/wallet_demo_screen.dart';
-import '../views/wallet_overview_screen.dart';
-import '../views/wallet_redemption_screens.dart';
-import '../views/wallet_voucher_screens.dart';
+import '../../coins/coin_wallet_screens.dart';
 
+/// Coins-only visual wallet routes. Legacy HP/RC files remain in the repository
+/// for migration safety but are no longer used by user-facing wallet routes.
 final walletRoutes = <RouteBase>[
-  GoRoute(path: '/wallet', builder: (_, _) => const WalletOverviewScreen()),
+  GoRoute(path: '/wallet', builder: (_, _) => const CoinWalletHomeScreen()),
+  GoRoute(path: '/wallet/choose', builder: (_, _) => const CoinRedeemScreen()),
+  GoRoute(path: '/wallet/confirm', builder: (_, _) => const CoinRedeemScreen()),
   GoRoute(
-    path: '/wallet/choose',
-    builder: (_, _) => const WalletRewardsScreen(),
+    path: '/wallet/requests',
+    builder: (_, _) => const CoinRequestsScreen(),
   ),
   GoRoute(
-    path: '/wallet/confirm',
-    builder: (_, s) => WalletConfirmScreen(
-      offerId: s.uri.queryParameters['offer'],
-      intentId: s.uri.queryParameters['intent'],
-    ),
+    path: '/wallet/request',
+    builder: (_, s) =>
+        CoinRequestDetailScreen(requestId: s.uri.queryParameters['id']),
   ),
   GoRoute(
     path: '/wallet/pending',
     builder: (_, s) =>
-        WalletPendingScreen(requestId: s.uri.queryParameters['id']),
+        CoinRequestDetailScreen(requestId: s.uri.queryParameters['id']),
   ),
   GoRoute(
     path: '/wallet/approved',
     builder: (_, s) =>
-        WalletApprovedScreen(requestId: s.uri.queryParameters['id']),
+        CoinRequestDetailScreen(requestId: s.uri.queryParameters['id']),
+  ),
+  GoRoute(
+    path: '/wallet/rejected',
+    builder: (_, s) =>
+        CoinRequestDetailScreen(requestId: s.uri.queryParameters['id']),
+  ),
+  GoRoute(
+    path: '/wallet/insufficient',
+    builder: (_, _) => const CoinRedeemScreen(),
   ),
   GoRoute(
     path: '/wallet/vouchers',
-    builder: (_, _) => const WalletVouchersScreen(),
+    builder: (_, _) => const CoinVouchersScreen(),
   ),
   GoRoute(
     path: '/wallet/voucher',
     builder: (_, s) =>
-        WalletVoucherDetailsScreen(voucherId: s.uri.queryParameters['id']),
+        CoinVoucherDetailScreen(voucherId: s.uri.queryParameters['id']),
   ),
   GoRoute(
     path: '/wallet/history',
-    builder: (_, _) => const WalletHistoryScreen(),
+    builder: (_, _) => const CoinHistoryScreen(),
   ),
-  GoRoute(path: '/wallet/rules', builder: (_, _) => const WalletRulesScreen()),
-  GoRoute(
-    path: '/wallet/rejected',
-    builder: (_, s) =>
-        WalletRejectedScreen(requestId: s.uri.queryParameters['id']),
-  ),
-  GoRoute(
-    path: '/wallet/insufficient',
-    builder: (_, s) =>
-        WalletInsufficientScreen(offerId: s.uri.queryParameters['offer']),
-  ),
+  GoRoute(path: '/wallet/rules', builder: (_, _) => const CoinRulesScreen()),
   GoRoute(
     path: '/wallet/demo',
     redirect: (_, _) => kDebugMode ? null : '/wallet',
-    builder: (_, s) => WalletDemoScreen(code: s.uri.queryParameters['code']),
+    builder: (_, _) => const CoinWalletDemoScreen(),
   ),
 ];

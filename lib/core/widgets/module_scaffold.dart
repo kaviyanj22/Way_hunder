@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/wayhunter_palette.dart';
-import 'scenic_background.dart';
+import 'app_themed_background.dart';
 
 class ModuleScaffold extends StatelessWidget {
   const ModuleScaffold({
@@ -46,7 +46,9 @@ class ModuleScaffold extends StatelessWidget {
         onPopInvokedWithResult: (didPop, result) {
           if (!didPop) context.go(backRoute);
         },
-        child: ScenicBackground(
+        child: AppThemedBackground(
+          module: module,
+
           child: Scaffold(
             backgroundColor: Colors.transparent,
             bottomNavigationBar: SafeArea(

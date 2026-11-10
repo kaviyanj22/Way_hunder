@@ -32,6 +32,7 @@ class _AuthLayout extends StatelessWidget {
   final Widget? header;
   final String? backRoute;
   final VoidCallback? onBack;
+
   /// Main Register page is not scrollable when the keyboard is closed.
   /// Keyboard-open form input remains scrollable for accessibility.
   final bool fixedRegister;
@@ -128,7 +129,8 @@ class _AuthLayout extends StatelessWidget {
                 // Keep the same input subtree mounted while the keyboard opens:
                 // rebuilding it under a different parent would lose focus.
                 final fullHeight =
-                    constraints.maxHeight + MediaQuery.viewInsetsOf(context).bottom;
+                    constraints.maxHeight +
+                    MediaQuery.viewInsetsOf(context).bottom;
                 return SingleChildScrollView(
                   physics: keyboardOpen
                       ? const ClampingScrollPhysics()
@@ -166,7 +168,9 @@ class _AuthLayout extends StatelessWidget {
                   context,
                   fixedRegister
                       ? 8.0
-                      : (constraints.maxHeight * .22).clamp(76.0, 190.0).toDouble(),
+                      : (constraints.maxHeight * .22)
+                            .clamp(76.0, 190.0)
+                            .toDouble(),
                 ),
               );
             },

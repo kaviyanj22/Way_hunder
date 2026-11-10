@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../views/traveller_screens.dart';
 import '../views/active_trip_dashboard.dart';
+import '../views/friends_picker_screen.dart';
 import '../views/suggested_trip_detail_screen.dart';
 
 final List<RouteBase> travellerRoutes = [
@@ -15,6 +16,14 @@ final List<RouteBase> travellerRoutes = [
   GoRoute(
     path: '/traveller/create',
     builder: (_, _) => const TripBuilderScreen(),
+  ),
+  GoRoute(
+    path: '/traveller/pick-friends',
+    builder: (_, state) => TripFriendsPickerScreen(
+      initialSelected: state.extra is List<String>
+          ? state.extra! as List<String>
+          : const <String>[],
+    ),
   ),
   GoRoute(
     path: '/traveller/review',

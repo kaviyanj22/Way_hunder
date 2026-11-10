@@ -1,0 +1,23 @@
+// Activated only by scripts/export_screenshots.ps1. Keep the SDK unchanged.
+// Flutter drive uses the VM service, not AndroidJUnit instrumentation. The SDK
+// plugin nevertheless requests unused AndroidX runners and an older AGP. Reuse
+// this project's cached AGP and Guava for this screenshot-only build.
+if (System.getenv('WAYHUNTER_SCREENSHOT_EXPORT') == 'true') {
+    gradle.beforeProject { p ->
+        if (p.name == 'integration_test') {
+            p.buildscript.configurations.configureEach {
+                resolutionStrategy.force 'com.android.tools.build:gradle:9.1.0'
+            }
+            p.afterEvaluate {
+                p.configurations.configureEach {
+                    exclude group: 'androidx.test'
+                    exclude group: 'androidx.test.espresso'
+                    resolutionStrategy.force 'com.google.guava:guava:33.5.0-android'
+                }
+                // This JUnit instrumentation runner is unused by flutter drive.
+                // IntegrationTestPlugin + FlutterDeviceScreenshot stay intact.
+                p.android.sourceSets.main.java.exclude '**/FlutterTestRunner.java'
+            }
+        }
+    }
+}

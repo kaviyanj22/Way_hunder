@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/constants/app_assets.dart';
-import '../../../../core/widgets/app_nav_bar.dart';
 import '../../../../core/widgets/glass_panel.dart';
-import '../../../../core/widgets/scenic_background.dart';
+import '../../../../core/widgets/home_profile_bottom_nav.dart';
 import '../../../auth/presentation/viewmodels/auth_view_model.dart';
 import '../viewmodels/home_view_model.dart';
 
@@ -16,18 +14,31 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(authViewModelProvider).user;
     final home = ref.watch(homeViewModelProvider);
-    return ScenicBackground(
-      dim: false,
+    // Leave room for the WAYHUNTER logo baked into the background image.
+    // This scales with the screen so small phones don't get a huge empty gap.
+    final logoSpace = (MediaQuery.sizeOf(context).height * 0.09)
+        .clamp(58.0, 82.0).toDouble();
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage(
+            'assets/images/backgrounds/wayhunter_auth_home_bg.png',
+          ),
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+        ),
+      ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        bottomNavigationBar: const AppNavBar(),
+        bottomNavigationBar: const HomeProfileBottomNav(),
         body: SafeArea(
           bottom: false,
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 480),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -98,7 +109,7 @@ class HomeScreen extends ConsumerWidget {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 165),
+                    SizedBox(height: logoSpace),
                     if (home.content.advertisements.isNotEmpty)
                       InkWell(
                         borderRadius: BorderRadius.circular(24),
@@ -120,7 +131,10 @@ class HomeScreen extends ConsumerWidget {
                           ),
                         ),
                         child: GlassPanel(
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 19,
+                          ),
                           child: Row(
                             children: [
                               Expanded(
@@ -160,25 +174,24 @@ class HomeScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 7),
                     const _ModeButton(
-                      asset: AppAssets.travellerButton,
+                      asset: 'assets/images/buttons/traveler_button.png',
                       label: 'Open Traveller',
                       route: '/traveller',
                     ),
-                    const SizedBox(height: 14),
+                    // No extra vertical space between the three cards.
                     const _ModeButton(
-                      asset: AppAssets.hunterButton,
+                      asset: 'assets/images/buttons/hunter_button.png',
                       label: 'Open Hunter',
                       route: '/hunter',
                     ),
-                    const SizedBox(height: 14),
                     const _ModeButton(
-                      asset: AppAssets.gameButton,
+                      asset: 'assets/images/buttons/game_button.png',
                       label: 'Open Game',
                       route: '/game',
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 7),
                     const Text(
                       'LOCAL DEMO  ·  Phase 1 prototype',
                       textAlign: TextAlign.center,
@@ -218,13 +231,20 @@ class _ModeButton extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(20),
         onTap: () => context.push(route),
+        // Original PNGs have transparent margins. A more compact card
+        // crops only the very top/bottom margins without stretching text.
         child: AspectRatio(
-          aspectRatio: 3.8,
-          child: Image.asset(
-            asset,
-            fit: BoxFit.contain,
-            width: double.infinity,
-            excludeFromSemantics: true,
+          aspectRatio: 3.65,
+          child: ClipRect(
+            child: Image.asset(
+              asset,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              excludeFromSemantics: true,
+              errorBuilder: (_, error, stackTrace) => Center(
+                child: Text('Image not found: $asset'),
+              ),
+            ),
           ),
         ),
       ),

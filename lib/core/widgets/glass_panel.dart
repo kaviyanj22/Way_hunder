@@ -2,8 +2,6 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
-import '../theme/wayhunter_palette.dart';
-
 class GlassPanel extends StatelessWidget {
   const GlassPanel({
     super.key,
@@ -24,7 +22,7 @@ class GlassPanel extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
-            color: (accent ?? WayhunterPalette.travellerCyan).withValues(
+            color: (accent ?? Theme.of(context).colorScheme.primary).withValues(
               alpha: .42,
             ),
           ),
@@ -32,12 +30,15 @@ class GlassPanel extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              const Color(0xFF123C4F).withValues(alpha: .56),
-              const Color(0xFF06121F).withValues(alpha: .70),
+              const Color(0xFFB5D7EA).withValues(alpha: .22),
+              const Color(0xFF06121F).withValues(alpha: .78),
             ],
           ),
         ),
-        child: Padding(padding: padding, child: child),
+        child: Padding(
+          padding: padding,
+          child: child,
+        ) /* wayhunter-soft-glass-panel-v2 */,
       ),
     ),
   );

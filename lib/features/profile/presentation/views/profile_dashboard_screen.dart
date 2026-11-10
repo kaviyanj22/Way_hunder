@@ -8,13 +8,14 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/theme/wayhunter_palette.dart';
 import '../../../../core/widgets/glass_panel.dart';
+import '../../../../core/widgets/home_profile_bottom_nav.dart';
 import '../../../../core/widgets/scenic_background.dart';
 import '../../../auth/presentation/viewmodels/auth_view_model.dart';
 import '../../../games/presentation/viewmodels/game_view_model.dart';
 import '../../../hunter/domain/hunter_models.dart';
 import '../../../hunter/presentation/viewmodels/hunter_view_model.dart';
 import '../../../traveller/presentation/viewmodels/traveller_view_model.dart';
-import '../../../wallet/presentation/viewmodels/wallet_view_model.dart';
+import '../../../wallet/coins/coin_wallet_view_model.dart';
 import '../viewmodels/profile_view_model.dart';
 
 const _cyan = WayhunterPalette.travellerCyan;
@@ -44,7 +45,7 @@ class _ProfileDashboardScreenState
   Widget build(BuildContext context) {
     final user = ref.watch(authViewModelProvider).user;
     final details = ref.watch(profileDetailsProvider);
-    final wallet = ref.watch(walletViewModelProvider);
+    final coinsWallet = ref.watch(coinWalletProvider);
     if (user == null) {
       return Scaffold(
         body: Center(
@@ -58,45 +59,7 @@ class _ProfileDashboardScreenState
     return ScenicBackground(
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(13, 0, 13, 6),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(23),
-              child: NavigationBar(
-                height: 60,
-                backgroundColor: const Color(0xD9001C2D),
-                selectedIndex: 3,
-                indicatorColor: _cyan.withValues(alpha: .25),
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.home_outlined),
-                    label: 'Home',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.hiking),
-                    label: 'Traveller',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.emoji_events_outlined),
-                    label: 'Leaderboard',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.person),
-                    label: 'Profile',
-                  ),
-                ],
-                onDestinationSelected: (i) => context.go(switch (i) {
-                  0 => '/home',
-                  1 => '/traveller',
-                  2 => '/leaderboard',
-                  _ => '/profile',
-                }),
-              ),
-            ),
-          ),
-        ),
+        bottomNavigationBar: const HomeProfileBottomNav(isProfile: true),
         body: SafeArea(
           bottom: false,
           child: Center(
@@ -157,9 +120,31 @@ class _ProfileDashboardScreenState
                       details.bio,
                       details.location,
                       user.avatarBytes,
-                      wallet.hp,
+                      coinsWallet.totalEarned,
                     ),
-                    const SizedBox(height: 8),
+                    // Open the shared Friends hub from Profile (not the active-trip friends page).
+                    const SizedBox(height: 5),
+                    SizedBox(
+                      height: 36,
+                      child: OutlinedButton.icon(
+                        key: const ValueKey('profile-friends-entry'),
+                        onPressed: () => context.push('/friends'),
+                        icon: const Icon(Icons.people_alt_outlined, size: 18),
+                        label: const Text('Friends'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: _cyan,
+                          backgroundColor: const Color(0xD5032837),
+                          side: const BorderSide(color: _cyan),
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 7),
                     GlassPanel(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -178,7 +163,7 @@ class _ProfileDashboardScreenState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Travel Explorer · Level ${user.level}',
+                                  'Travel Explorer · Level ${coinsWallet.level}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -188,7 +173,7 @@ class _ProfileDashboardScreenState
                                 ),
                                 const SizedBox(height: 6),
                                 LinearProgressIndicator(
-                                  value: (wallet.hp % 5000) / 5000,
+                                  value: coinsWallet.levelProgress,
                                   color: _cyan,
                                   backgroundColor: const Color(0xFF16485C),
                                   minHeight: 7,
@@ -303,7 +288,7 @@ class _ProfileDashboardScreenState
     String bio,
     String location,
     Uint8List? avatar,
-    int hp,
+    int coins,
   ) => GlassPanel(
     padding: const EdgeInsets.all(12),
     child: Row(
@@ -345,7 +330,7 @@ class _ProfileDashboardScreenState
                 style: const TextStyle(fontSize: 10, color: Color(0xFF98E8F8)),
               ),
               Text(
-                '$hp HP · Local traveller',
+                '$coins Coins · Local traveller',
                 style: const TextStyle(fontSize: 10),
               ),
               TextButton.icon(

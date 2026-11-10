@@ -19,7 +19,7 @@ abstract final class AppTheme {
       useMaterial3: true,
       fontFamily: 'Roboto',
       colorScheme: scheme,
-      scaffoldBackgroundColor: const Color(0xFF04111E),
+      scaffoldBackgroundColor: const Color(0xFF142B49),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
           fontSize: 34,

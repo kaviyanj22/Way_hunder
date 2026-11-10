@@ -120,7 +120,7 @@ class TravellerLandingScreen extends ConsumerWidget {
               key: const ValueKey('traveller-background-blur'),
               imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
               child: Image.asset(
-                AppAssets.homeBackground,
+                AppAssets.travellerSoftBackground,
                 fit: BoxFit.cover,
                 alignment: Alignment.topCenter,
                 excludeFromSemantics: true,
@@ -588,7 +588,7 @@ class _PreviousTravellerPlanScreenState
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Image.asset(
-                  AppAssets.homeBackground,
+                  AppAssets.travellerSoftBackground,
                   height: 170,
                   fit: BoxFit.cover,
                 ),

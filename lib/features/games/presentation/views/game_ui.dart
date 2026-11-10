@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/wayhunter_palette.dart';
-import '../../../../core/widgets/scenic_background.dart';
+import '../../../../core/widgets/app_themed_background.dart';
 
 const gamePurple = WayhunterPalette.gamePurple;
-const gameGreen = Color(0xFF35E978);
-const gameCyan = Color(0xFF27D9F2);
+const gameGreen = Color(0xFF9D4CCC);
+const gameCyan = Color(0xFF8339B3);
 
 /// Fixed footer and brand header for all Game screens. Only detailed flows
 /// scroll; the Game Zone landing content fits the available viewport.
@@ -31,7 +31,8 @@ class GameShell extends StatelessWidget {
     data: Theme.of(context).copyWith(
       colorScheme: Theme.of(context).colorScheme.copyWith(primary: gamePurple),
     ),
-    child: ScenicBackground(
+    child: AppThemedBackground(
+      module: WayhunterModule.game,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         bottomNavigationBar: SafeArea(
@@ -41,7 +42,7 @@ class GameShell extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: NavigationBar(
-                backgroundColor: const Color(0xE5052131),
+                backgroundColor: const Color(0xE5330066),
                 indicatorColor: gameGreen.withValues(alpha: .27),
                 height: 65,
                 selectedIndex: 1,
@@ -193,8 +194,8 @@ class GamePanel extends StatelessWidget {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          const Color(0xE008394D),
-          const Color(0xE5071020).withValues(alpha: .91),
+          const Color(0xFF682699),
+          const Color(0xFF330066).withValues(alpha: .91),
         ],
       ),
       boxShadow: [
@@ -228,7 +229,7 @@ class GameAction extends StatelessWidget {
       label: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
       style: FilledButton.styleFrom(
         backgroundColor: outline ? const Color(0xE008273A) : color,
-        foregroundColor: outline ? Colors.white : const Color(0xFF061222),
+        foregroundColor: Colors.white,
         minimumSize: const Size(0, 48),
         side: outline ? BorderSide(color: color) : null,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),

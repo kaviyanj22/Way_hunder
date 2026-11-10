@@ -1,0 +1,585 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../viewmodels/wallet_view_model.dart';
+import 'wallet_ui.dart';
+
+class WalletRewardsScreen extends ConsumerWidget {
+  const WalletRewardsScreen({super.key});
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(walletViewModelProvider);
+    final vm = ref.read(walletViewModelProvider.notifier);
+    return WalletShell(
+      title: 'Redeem Rewards',
+      subtitle: 'Use your RC for demo gift vouchers',
+      child: Column(
+        children: [
+          WalletTabs(
+            labels: const ['All', 'Shopping', 'Food', 'Travel'],
+            selected: state.category,
+            onSelected: vm.category,
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: state.filteredOffers.isEmpty
+                ? WalletEmpty(
+                    message:
+                        'No ${state.category.toLowerCase()} rewards available.',
+                    label: 'Show all rewards',
+                    onPressed: () => vm.category('All'),
+                  )
+                : ListView.separated(
+                    itemCount: state.filteredOffers.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, i) {
+                      final offer = state.filteredOffers[i];
+                      return InkWell(
+                        key: ValueKey('wallet-offer-${offer.id}'),
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () {
+                          vm.selectOffer(offer.id);
+                          final intent = ref
+                              .read(walletViewModelProvider)
+                              .intentId!;
+                          context.push(
+                            '/wallet/confirm?offer=${Uri.encodeQueryComponent(offer.id)}&intent=$intent',
+                          );
+                        },
+                        child: WalletGlass(
+                          child: Column(
+                            children: [
+                              WalletOfferSummary(
+                                offer: offer,
+                                trailing: const Icon(Icons.chevron_right),
+                              ),
+                              const SizedBox(height: 7),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  const Icon(
+                                    Icons.paid_outlined,
+                                    color: walletGold,
+                                    size: 18,
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Text(
+                                    '${walletNumber.format(offer.cost)} RC',
+                                    style: const TextStyle(
+                                      color: walletGold,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 10),
+          WalletGlass(
+            padding: const EdgeInsets.all(11),
+            child: Text(
+              state.error ?? 'Vouchers are issued locally only after a separate DEMO review.',
+              style: const TextStyle(fontSize: 11, color: Color(0xFFD5EAF0)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class WalletConfirmScreen extends ConsumerStatefulWidget {
+  const WalletConfirmScreen({super.key, this.offerId, this.intentId});
+  final String? offerId, intentId;
+  @override
+  ConsumerState<WalletConfirmScreen> createState() =>
+      _WalletConfirmScreenState();
+}
+
+class _WalletConfirmScreenState extends ConsumerState<WalletConfirmScreen> {
+  bool _busy = false;
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(walletViewModelProvider);
+    final offer = state.offerById(widget.offerId ?? state.selectedOfferId);
+    final token = widget.intentId ?? state.intentId;
+    if (offer == null || token == null) {
+      return WalletShell(
+        title: 'Confirm Redemption',
+        backRoute: '/wallet/choose',
+        child: WalletEmpty(
+          message: 'Choose a reward to start a redemption.',
+          label: 'Choose a voucher',
+          onPressed: () => context.go('/wallet/choose'),
+        ),
+      );
+    }
+    final enough = state.availableRc >= offer.cost;
+    return WalletShell(
+      backRoute: '/wallet/choose',
+      child: WalletFit(
+        height: 610,
+        child: WalletGlass(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(
+                Icons.card_giftcard_outlined,
+                size: 40,
+                color: walletCyan,
+              ),
+              const SizedBox(height: 7),
+              const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'Confirm Redemption',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(height: 12),
+              WalletGlass(
+                child: Column(
+                  children: [
+                    const WalletBrand(large: true),
+                    const SizedBox(height: 8),
+                    Text(
+                      offer.name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    Text(
+                      'Rs. ${walletNumber.format(offer.value)}',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              WalletGlass(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 7,
+                ),
+                child: Column(
+                  children: [
+                    WalletLine(
+                      'Required RC',
+                      '${walletNumber.format(offer.cost)} RC',
+                      color: walletGold,
+                    ),
+                    WalletLine(
+                      'Current available RC',
+                      '${walletNumber.format(state.availableRc)} RC',
+                      color: walletGold,
+                    ),
+                    WalletLine(
+                      'After approval',
+                      enough
+                          ? '${walletNumber.format(state.availableRc - offer.cost)} RC'
+                          : 'Insufficient RC',
+                      color: enough ? walletCyan : const Color(0xFFFF868D),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                enough
+                    ? 'Confirm reserves RC. A separate DEMO approval posts the deduction and issues a voucher.'
+                    : 'Insufficient available RC. Choose a lower-value voucher or earn more RC.',
+                maxLines: 4,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: enough
+                      ? const Color(0xFFC9E8F0)
+                      : const Color(0xFFFF868D),
+                ),
+              ),
+              if (!enough)
+                TextButton(
+                  onPressed: () =>
+                      context.push('/wallet/insufficient?offer=${offer.id}'),
+                  child: const Text('View RC shortfall'),
+                ),
+              const Spacer(),
+              Row(
+                children: [
+                  Expanded(
+                    child: WalletButton(
+                      label: 'Cancel',
+                      outline: true,
+                      onPressed: () {
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go('/wallet/choose');
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: WalletButton(
+                      key: const ValueKey('wallet-confirm'),
+                      label: _busy ? 'Submitting…' : 'Confirm',
+                      onPressed: !enough || _busy
+                          ? null
+                          : () async {
+                              if (_busy) return;
+                              setState(() => _busy = true);
+                              final vm = ref.read(
+                                walletViewModelProvider.notifier,
+                              );
+                              final path = vm.request(
+                                offerId: offer.id,
+                                intentId: token,
+                              );
+                              await vm.persistenceSettled;
+                              if (!context.mounted) return;
+                              context.replace(path);
+                            },
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class WalletPendingScreen extends ConsumerWidget {
+  const WalletPendingScreen({super.key, this.requestId});
+  final String? requestId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(walletViewModelProvider);
+    final request = state.requestById(requestId ?? state.selectedRequestId);
+    if (request == null) {
+      return const WalletMissingScreen(
+        message: 'This request could not be found.',
+      );
+    }
+    return WalletShell(
+      child: WalletFit(
+        height: 540,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _StatusHeading(
+              icon: request.status == RequestStatus.pending
+                  ? Icons.schedule
+                  : Icons.receipt_long_outlined,
+              color: request.status == RequestStatus.approved
+                  ? walletGreen
+                  : walletGold,
+              title: request.status == RequestStatus.pending
+                  ? 'Request Submitted'
+                  : 'Request ${request.status.name}',
+              message: switch (request.status) {
+                RequestStatus.pending => 'RC reserved. No RC deducted yet.',
+                RequestStatus.approved => 'Approved. RC was deducted once.',
+                RequestStatus.rejected => 'Rejected. The RC hold was released.',
+              },
+            ),
+            const SizedBox(height: 18),
+            _RequestCard(request: request),
+            const Spacer(),
+            if (request.status != RequestStatus.pending) ...[
+              WalletButton(
+                label: request.status == RequestStatus.approved
+                    ? 'View approval'
+                    : 'View rejection',
+                onPressed: () => context.push(
+                  ref
+                      .read(walletViewModelProvider.notifier)
+                      .routeForRequest(request),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            WalletButton(
+              label: 'Back to Wallet',
+              onPressed: () => context.go('/wallet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class WalletApprovedScreen extends ConsumerWidget {
+  const WalletApprovedScreen({super.key, this.requestId});
+  final String? requestId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(walletViewModelProvider);
+    final request = state.requestById(requestId ?? state.selectedRequestId);
+    if (request == null || request.status != RequestStatus.approved) {
+      return const WalletMissingScreen(
+        message: 'This request has not been approved.',
+      );
+    }
+    final offer = state.offerById(request.offerId)!;
+    return WalletShell(
+      child: WalletFit(
+        height: 530,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _StatusHeading(
+              icon: Icons.check_circle_outline,
+              color: walletGreen,
+              title: 'Voucher Approved!',
+              message: 'Your demo voucher has been added to your wallet.',
+            ),
+            const SizedBox(height: 22),
+            WalletGlass(child: WalletOfferSummary(offer: offer)),
+            const SizedBox(height: 12),
+            WalletGlass(
+              child: WalletLine(
+                'RC deducted once',
+                '${walletNumber.format(request.cost)} RC',
+                color: walletGold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Request ID: ${request.id}',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 10),
+            ),
+            const Spacer(),
+            WalletButton(
+              key: const ValueKey('wallet-view-issued'),
+              label: 'View My Vouchers',
+              onPressed: () {
+                ref.read(walletViewModelProvider.notifier).usedTab(false);
+                context.push('/wallet/vouchers');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class WalletRejectedScreen extends ConsumerWidget {
+  const WalletRejectedScreen({super.key, this.requestId});
+  final String? requestId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(walletViewModelProvider);
+    final request = state.requestById(requestId ?? state.selectedRequestId);
+    if (request == null || request.status != RequestStatus.rejected) {
+      return const WalletMissingScreen(
+        message: 'This request has no rejection record.',
+      );
+    }
+    return WalletShell(
+      child: WalletFit(
+        height: 590,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _StatusHeading(
+              icon: Icons.cancel_outlined,
+              color: const Color(0xFFFF767D),
+              title: 'Request Rejected',
+              message: request.reason,
+            ),
+            const SizedBox(height: 16),
+            _RequestCard(request: request),
+            const SizedBox(height: 12),
+            Text(
+              '${walletNumber.format(request.cost)} RC reservation released. No RC was deducted.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 12, color: walletCyan),
+            ),
+            const Spacer(),
+            WalletButton(
+              label: 'Choose another voucher',
+              onPressed: () => context.go('/wallet/choose'),
+            ),
+            const SizedBox(height: 8),
+            WalletButton(
+              label: 'Back to Wallet',
+              outline: true,
+              onPressed: () => context.go('/wallet'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class WalletInsufficientScreen extends ConsumerWidget {
+  const WalletInsufficientScreen({super.key, this.offerId});
+  final String? offerId;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(walletViewModelProvider);
+    final offer = state.offerById(offerId ?? state.selectedOfferId);
+    return WalletShell(
+      backRoute: '/wallet/choose',
+      child: WalletFit(
+        height: 550,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _StatusHeading(
+              icon: Icons.warning_amber_rounded,
+              color: walletGold,
+              title: 'Insufficient RC',
+              message: 'You need more available RC for this reward.',
+            ),
+            const SizedBox(height: 18),
+            if (offer != null)
+              WalletGlass(child: WalletOfferSummary(offer: offer)),
+            const SizedBox(height: 12),
+            WalletGlass(
+              child: Column(
+                children: [
+                  WalletLine(
+                    'Required RC',
+                    '${walletNumber.format(offer?.cost ?? 0)} RC',
+                    color: walletGold,
+                  ),
+                  WalletLine(
+                    'Available RC',
+                    '${walletNumber.format(state.availableRc)} RC',
+                    color: walletGold,
+                  ),
+                  WalletLine(
+                    'Reserved by pending requests',
+                    '${walletNumber.format(state.heldRc)} RC',
+                  ),
+                ],
+              ),
+            ),
+            const Spacer(),
+            WalletButton(
+              label: 'Explore game rewards',
+              onPressed: () => context.push('/game/rewards'),
+            ),
+            const SizedBox(height: 8),
+            WalletButton(
+              label: 'Choose another voucher',
+              outline: true,
+              onPressed: () => context.go('/wallet/choose'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusHeading extends StatelessWidget {
+  const _StatusHeading({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.message,
+  });
+  final IconData icon;
+  final Color color;
+  final String title, message;
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Icon(icon, color: color, size: 68),
+      const SizedBox(height: 12),
+      FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          title,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        message,
+        textAlign: TextAlign.center,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13, color: Color(0xFFD8E9F0)),
+      ),
+    ],
+  );
+}
+
+class _RequestCard extends ConsumerWidget {
+  const _RequestCard({required this.request});
+  final VoucherRequest request;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final offer = ref
+        .watch(walletViewModelProvider)
+        .offerById(request.offerId)!;
+    return WalletGlass(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          WalletOfferSummary(offer: offer),
+          const SizedBox(height: 12),
+          const Text(
+            'Request ID',
+            style: TextStyle(fontSize: 11, color: Color(0xFFC5E2EA)),
+          ),
+          SelectableText(
+            request.id,
+            style: const TextStyle(fontSize: 10),
+            maxLines: 3,
+          ),
+          WalletLine(
+            'Required RC',
+            '${walletNumber.format(request.cost)} RC',
+            color: walletGold,
+          ),
+          Row(
+            children: [
+              const Expanded(
+                child: Text('Status', style: TextStyle(fontSize: 12)),
+              ),
+              WalletPill(
+                request.status.name[0].toUpperCase() +
+                    request.status.name.substring(1),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class WalletMissingScreen extends StatelessWidget {
+  const WalletMissingScreen({super.key, required this.message});
+  final String message;
+  @override
+  Widget build(BuildContext context) => WalletShell(
+    title: 'Wallet record unavailable',
+    child: WalletEmpty(
+      message: message,
+      label: 'Back to Wallet',
+      onPressed: () => context.go('/wallet'),
+    ),
+  );
+}

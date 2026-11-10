@@ -447,7 +447,10 @@ class _TripFormFrame extends StatelessWidget {
       children: [
         ImageFiltered(
           imageFilter: ui.ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-          child: Image.asset(AppAssets.homeBackground, fit: BoxFit.cover),
+          child: Image.asset(
+            AppAssets.travellerSoftBackground,
+            fit: BoxFit.cover,
+          ),
         ),
         const ColoredBox(color: Color(0xA9001424)),
         Scaffold(

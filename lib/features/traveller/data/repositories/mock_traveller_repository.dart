@@ -114,6 +114,7 @@ class MockTravellerRepository implements TravellerRepository {
       ownerId: value['ownerId']! as String,
       title: value['title']! as String,
       stops: (value['stops']! as List).cast<String>().toList(growable: false),
+      friendIds: List<String>.from(value['friendIds'] as List? ?? const []),
       startDate:
           DateTime.tryParse(value['startDate'] as String? ?? '') ??
           DateTime(now.year, now.month, now.day),
@@ -148,6 +149,7 @@ class MockTravellerRepository implements TravellerRepository {
     'ownerId': p.ownerId,
     'title': p.title,
     'stops': p.stops,
+    'friendIds': p.friendIds,
     'startDate': p.startDate.toIso8601String(),
     'endDate': p.endDate.toIso8601String(),
     'vehicle': p.vehicle,

@@ -3,10 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/wayhunter_palette.dart';
 import '../../../../core/widgets/glass_panel.dart';
-import '../../../../core/widgets/scenic_background.dart';
+import '../../../../core/widgets/app_themed_background.dart';
 
 const hunterGold = WayhunterPalette.hunterGold;
-const hunterGreen = Color(0xFF22E878);
+const hunterGreen = Color(0xFF8EB69B);
 
 class HunterShell extends StatelessWidget {
   const HunterShell({
@@ -37,7 +37,8 @@ class HunterShell extends StatelessWidget {
     data: Theme.of(context).copyWith(
       colorScheme: Theme.of(context).colorScheme.copyWith(primary: hunterGold),
     ),
-    child: ScenicBackground(
+    child: AppThemedBackground(
+      module: WayhunterModule.hunter,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         // Keep the Hunter Home layout fixed while the search keyboard opens.
@@ -51,7 +52,7 @@ class HunterShell extends StatelessWidget {
               borderRadius: BorderRadius.circular(22),
               child: NavigationBar(
                 height: 65,
-                backgroundColor: const Color(0xD906202A),
+                backgroundColor: const Color(0xE5051F20),
                 indicatorColor: hunterGold.withValues(alpha: .25),
                 selectedIndex: selectedIndex,
                 onDestinationSelected: (index) => context.go(switch (index) {

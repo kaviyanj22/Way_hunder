@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/storage/local_demo_storage.dart';
 import '../../../auth/presentation/viewmodels/auth_view_model.dart';
-import '../../../wallet/presentation/viewmodels/wallet_view_model.dart';
+import '../../../wallet/coins/coin_wallet_view_model.dart';
 import '../../data/repositories/mock_game_repository.dart';
 import '../../domain/entities/game_models.dart';
 import '../../domain/repositories/game_repository.dart';
@@ -32,8 +32,8 @@ final gameRewardSinkProvider = Provider<GameRewardSink>(
         required int rc,
         required String title,
       }) => ref
-          .read(walletViewModelProvider.notifier)
-          .creditReward(sourceId: sourceId, hp: hp, rc: rc, title: title),
+          .read(coinWalletProvider.notifier)
+          .recordEarning(sourceId: sourceId, title: title, coins: 100),
 );
 final gameViewModelProvider = NotifierProvider<GameViewModel, GameState>(
   GameViewModel.new,
@@ -213,7 +213,7 @@ class GameViewModel extends Notifier<GameState> {
 
   bool validatePhoto() => state.draft.photo != null
       ? true
-      : _fail('Capture or choose a location photo first.');
+      : _fail('Capture a location photo with the camera first.');
   bool validateRules() {
     final error = GameRules.rulesError(state.draft);
     return error == null ? true : _fail(error);
@@ -243,6 +243,13 @@ class GameViewModel extends Notifier<GameState> {
       ),
       persist: true,
     );
+    ref
+        .read(coinWalletProvider.notifier)
+        .recordEarning(
+          sourceId: 'game-create:${game.id}',
+          title: 'Game creation awaiting admin approval: ${game.title}',
+          coins: 100,
+        );
     return true;
   }
 

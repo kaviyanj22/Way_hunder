@@ -303,13 +303,15 @@ class WalletViewModel extends Notifier<WalletState> {
     return _commit(
       state.copyWith(
         requests: state.requests
-            .map((r) => r.id == id
-                ? r.decided(
-                    RequestStatus.rejected,
-                    'Cancelled by you. Reserved RC was released.',
-                    at: now,
-                  )
-                : r)
+            .map(
+              (r) => r.id == id
+                  ? r.decided(
+                      RequestStatus.rejected,
+                      'Cancelled by you. Reserved RC was released.',
+                      at: now,
+                    )
+                  : r,
+            )
             .toList(),
         selectedRequestId: id,
         entries: [

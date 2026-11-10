@@ -24,7 +24,9 @@ class TripPlan {
     this.status = TripStatus.planned,
     this.method = TripMethod.manual,
     this.customStops = const {},
+    this.friendIds = const [],
   });
+  final List<String> friendIds;
   final String id, ownerId, title, vehicle;
   final List<String> stops;
   final DateTime startDate, endDate;
@@ -45,6 +47,7 @@ class TripPlan {
     TripStatus? status,
     TripMethod? method,
     Map<String, MapCoordinate>? customStops,
+    List<String>? friendIds,
   }) => TripPlan(
     id: id,
     ownerId: ownerId,
@@ -58,6 +61,7 @@ class TripPlan {
     status: status ?? this.status,
     method: method ?? this.method,
     customStops: customStops ?? this.customStops,
+    friendIds: friendIds ?? this.friendIds,
   );
 }
 
@@ -73,7 +77,9 @@ class TripDraft {
     this.budget = 0,
     this.method = TripMethod.manual,
     this.customStops = const {},
+    this.friendIds = const [],
   });
+  final List<String> friendIds;
   final String? editingId;
   final String title, vehicle;
   final List<String> stops;
@@ -93,6 +99,7 @@ class TripDraft {
     budget: plan.budget,
     method: plan.method,
     customStops: plan.customStops,
+    friendIds: plan.friendIds,
   );
   TripDraft copyWith({
     String? title,
@@ -104,6 +111,7 @@ class TripDraft {
     double? budget,
     TripMethod? method,
     Map<String, MapCoordinate>? customStops,
+    List<String>? friendIds,
   }) => TripDraft(
     editingId: editingId,
     title: title ?? this.title,
@@ -115,6 +123,7 @@ class TripDraft {
     budget: budget ?? this.budget,
     method: method ?? this.method,
     customStops: customStops ?? this.customStops,
+    friendIds: friendIds ?? this.friendIds,
   );
   String? get validationError {
     if (title.trim().length < 3) {
@@ -134,8 +143,10 @@ class TripDraft {
     }
     if (people < 1) return 'Add at least one traveller.';
     if (vehicle.trim().isEmpty) return 'Choose a vehicle.';
-    if (!budget.isFinite || budget <= 0) {
-      return 'Enter a finite budget above zero.';
+    // Budget is optional on the simplified Create Trip screen.
+    // 0 denotes 'Not specified', rather than an invented amount.
+    if (!budget.isFinite || budget < 0) {
+      return 'Budget must be a non-negative finite amount.';
     }
     return null;
   }

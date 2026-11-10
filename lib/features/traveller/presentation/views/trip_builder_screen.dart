@@ -14,10 +14,19 @@ import '../widgets/trip_location_picker.dart';
 import '../widgets/trip_route_map.dart';
 
 const _cyan = WayhunterPalette.travellerCyan;
+const _mint = Color(0xFF12E6A4);
+const _purple = Color(0xFFAB40E8);
 final _money = NumberFormat.decimalPattern('en');
 
+/// Wayhunter Create Trip — approved two-screen visual flow.
+///
+/// Step 1: trip name + two-month date-range calendar.
+/// Step 2: real Traveller route picker/map + existing suggested-plan,
+/// AI, friends and submit flows. It intentionally uses the existing
+/// Traveller ViewModel and routes; it is NOT a detached demo screen.
 class TripBuilderScreen extends ConsumerStatefulWidget {
   const TripBuilderScreen({super.key});
+
   @override
   ConsumerState<TripBuilderScreen> createState() => _TripBuilderScreenState();
 }
@@ -26,6 +35,11 @@ class _TripBuilderScreenState extends ConsumerState<TripBuilderScreen> {
   final _name = TextEditingController();
   String? _pendingPlace;
   bool _submitting = false;
+  int _step = 1;
+  bool _datesInitialized = false;
+  DateTime? _rangeStart;
+  DateTime? _rangeEnd;
+  late DateTime _visibleMonth;
 
   @override
   void dispose() {
@@ -33,43 +47,68 @@ class _TripBuilderScreenState extends ConsumerState<TripBuilderScreen> {
     super.dispose();
   }
 
-  void _feedback() {
-    final error = ref.read(travellerViewModelProvider).error;
-    if (error == null) return;
+  void _message(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        SnackBar(content: Text(error), behavior: SnackBarBehavior.floating),
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
       );
   }
 
-  Future<void> _date({required bool start}) async {
-    FocusScope.of(context).unfocus();
-    final draft = ref.read(travellerViewModelProvider).draft;
-    final now = DateTime.now();
-    final first = !start && draft.startDate != null
-        ? draft.startDate!
-        : DateTime(now.year - 10);
-    final last = DateTime(math.max(now.year + 10, first.year + 1), 12, 31);
-    var initial =
-        (start ? draft.startDate : draft.endDate) ?? draft.startDate ?? now;
-    if (initial.isBefore(first)) initial = first;
-    if (initial.isAfter(last)) initial = last;
-    final selected = await showDatePicker(
-      context: context,
-      helpText: start ? 'Select start date' : 'Select end date',
-      initialDate: initial,
-      firstDate: first,
-      lastDate: last,
-    );
-    if (selected == null || !mounted) return;
-    final vm = ref.read(travellerViewModelProvider.notifier);
-    if (start) {
-      vm.setStartDate(selected);
-    } else {
-      vm.setEndDate(selected);
+  void _feedback() {
+    final error = ref.read(travellerViewModelProvider).error;
+    if (error != null) _message(error);
+  }
+
+  DateTime _dateOnly(DateTime value) =>
+      DateTime(value.year, value.month, value.day);
+
+  bool _sameDay(DateTime? a, DateTime b) =>
+      a != null && a.year == b.year && a.month == b.month && a.day == b.day;
+
+  void _chooseDay(DateTime day) {
+    final today = _dateOnly(DateTime.now());
+    if (day.isBefore(today)) {
+      _message('Choose today or a future trip date.');
+      return;
     }
-    _feedback();
+    setState(() {
+      if (_rangeStart == null || _rangeEnd != null) {
+        _rangeStart = day;
+        _rangeEnd = null;
+      } else if (day.isBefore(_rangeStart!)) {
+        _rangeEnd = _rangeStart;
+        _rangeStart = day;
+      } else {
+        _rangeEnd = day;
+      }
+    });
+  }
+
+  void _continueToRoute() {
+    FocusScope.of(context).unfocus();
+    if (_name.text.trim().length < 3) {
+      _message('Enter a trip name with at least 3 characters.');
+      return;
+    }
+    if (_rangeStart == null || _rangeEnd == null) {
+      _message('Select both your start date and end date.');
+      return;
+    }
+    ref
+        .read(travellerViewModelProvider.notifier)
+        .setDates(_rangeStart!, _rangeEnd!);
+    setState(() => _step = 2);
+  }
+
+  void _back() {
+    if (_step == 2) {
+      setState(() => _step = 1);
+    } else if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go('/traveller');
+    }
   }
 
   Future<void> _location(String role, {int? index}) async {
@@ -157,14 +196,28 @@ class _TripBuilderScreenState extends ConsumerState<TripBuilderScreen> {
           'Use your route, dates, budget and people count for a local itinerary. Missing details will be filled from a suggested plan.',
           'Generate plan',
         ) ||
-        !mounted) {
+        !mounted)
       return;
-    }
     if (ref.read(travellerViewModelProvider.notifier).generateAi()) {
       context.go('/traveller/ai');
     } else {
       _feedback();
     }
+  }
+
+  Future<void> _selectFriends() async {
+    FocusScope.of(context).unfocus();
+    final current = ref.read(travellerViewModelProvider).draft.friendIds;
+    final selected = await context.push<List<String>>(
+      '/traveller/pick-friends',
+      extra: List<String>.of(current),
+    );
+    if (!mounted || selected == null) return;
+    final vm = ref.read(travellerViewModelProvider.notifier);
+    final existingDraft = ref.read(travellerViewModelProvider).draft;
+    vm.updateDraft(
+      existingDraft.copyWith(friendIds: List.unmodifiable(selected)),
+    );
   }
 
   Future<void> _submit() async {
@@ -181,59 +234,29 @@ class _TripBuilderScreenState extends ConsumerState<TripBuilderScreen> {
     context.go('/traveller/plans');
   }
 
-  Future<void> _number({required bool people}) async {
-    final state = ref.read(travellerViewModelProvider);
-    final value = await showDialog<num>(
-      context: context,
-      builder: (_) => _NumberDialog(
-        people: people,
-        initial: people ? state.draft.people : state.draft.budget,
-        presets: people ? const [] : state.catalog.budgetOptions,
-      ),
-    );
-    if (value == null || !mounted) return;
-    final vm = ref.read(travellerViewModelProvider.notifier);
-    final current = ref.read(travellerViewModelProvider).draft;
-    vm.updateDraft(
-      people
-          ? current.copyWith(people: value.toInt())
-          : current.copyWith(budget: value.toDouble()),
-    );
-  }
-
-  Future<void> _vehicle() async {
-    final state = ref.read(travellerViewModelProvider);
-    final selected = await showDialog<String>(
-      context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Select vehicle'),
-        children: [
-          for (final vehicle in state.catalog.vehicles)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(ctx, vehicle),
-              child: ListTile(
-                dense: true,
-                title: Text(vehicle),
-                trailing: state.draft.vehicle == vehicle
-                    ? const Icon(Icons.check, color: _cyan)
-                    : null,
-              ),
-            ),
-        ],
-      ),
-    );
-    if (selected == null || !mounted) return;
-    final vm = ref.read(travellerViewModelProvider.notifier);
-    vm.updateDraft(
-      ref.read(travellerViewModelProvider).draft.copyWith(vehicle: selected),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(travellerViewModelProvider);
     final draft = state.draft;
     final vm = ref.read(travellerViewModelProvider.notifier);
+
+    if (!_datesInitialized) {
+      _datesInitialized = true;
+      _rangeStart = draft.startDate == null
+          ? null
+          : _dateOnly(draft.startDate!);
+      _rangeEnd = draft.endDate == null ? null : _dateOnly(draft.endDate!);
+      final initial = draft.startDate ?? DateTime.now();
+      _visibleMonth = DateTime(initial.year, initial.month);
+      // Returning from a copied Suggested/Previous Plan opens the route
+      // review instead of losing the selected route on the date screen.
+      if (draft.method == TripMethod.previous &&
+          draft.stops.length >= 2 &&
+          draft.startDate != null &&
+          draft.endDate != null) {
+        _step = 2;
+      }
+    }
     if (_name.text != draft.title) {
       _name.value = TextEditingValue(
         text: draft.title,
@@ -241,31 +264,24 @@ class _TripBuilderScreenState extends ConsumerState<TripBuilderScreen> {
       );
     }
     final stops = draft.stops;
-    final markers = [
+    final markers = <TravellerMapMarker>[
       for (var i = 0; i < stops.length; i++)
         if (state.positionFor(stops[i]) case final point?)
           TravellerMapMarker(id: 'stop-$i', name: stops[i], position: point),
     ];
-    void back() {
-      if (context.canPop()) {
-        context.pop();
-      } else {
-        context.go('/traveller');
-      }
-    }
 
     return PopScope(
-      canPop: context.canPop(),
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) context.go('/traveller');
+        if (!didPop) _back();
       },
       child: Stack(
         fit: StackFit.expand,
         children: [
           ImageFiltered(
-            imageFilter: ui.ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+            imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
             child: Image.asset(
-              AppAssets.homeBackground,
+              AppAssets.travellerSoftBackground,
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
               excludeFromSemantics: true,
@@ -276,480 +292,33 @@ class _TripBuilderScreenState extends ConsumerState<TripBuilderScreen> {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [Color(0x66000713), Color(0xBB000713)],
+                colors: [Color(0xB5001527), Color(0xCE00131F)],
               ),
             ),
           ),
           Scaffold(
             backgroundColor: Colors.transparent,
-            resizeToAvoidBottomInset: false,
-            bottomNavigationBar: const _TripNavigation(),
+            resizeToAvoidBottomInset: true,
+            bottomNavigationBar: _step == 2 ? const _TripNavigation() : null,
             body: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
-                child: LayoutBuilder(
-                  builder: (context, constraints) => Center(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: SizedBox(
-                        width: math.max(
-                          360,
-                          math.min(460, constraints.maxWidth),
-                        ),
-                        height: 744,
-                        child: MediaQuery.withClampedTextScaling(
-                          maxScaleFactor: 1.25,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              SizedBox(
-                                height: 58,
-                                child: Column(
-                                  children: [
-                                    SizedBox(
-                                      height: 28,
-                                      child: Row(
-                                        children: [
-                                          IconButton(
-                                            tooltip: 'Go back',
-                                            padding: EdgeInsets.zero,
-                                            constraints:
-                                                const BoxConstraints.tightFor(
-                                                  width: 32,
-                                                  height: 28,
-                                                ),
-                                            onPressed: back,
-                                            icon: const Icon(
-                                              Icons.arrow_back_rounded,
-                                              size: 22,
-                                            ),
-                                          ),
-                                          const Expanded(
-                                            child: Row(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                Icon(
-                                                  Icons.explore_outlined,
-                                                  color: _cyan,
-                                                  size: 23,
-                                                ),
-                                                SizedBox(width: 6),
-                                                Text(
-                                                  'WAYHUNTER',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w900,
-                                                    letterSpacing: 2,
-                                                    fontSize: 14,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          IconButton(
-                                            tooltip: 'Profile',
-                                            padding: EdgeInsets.zero,
-                                            constraints:
-                                                const BoxConstraints.tightFor(
-                                                  width: 32,
-                                                  height: 28,
-                                                ),
-                                            onPressed: () =>
-                                                context.push('/profile'),
-                                            icon: const Icon(
-                                              Icons.account_circle_outlined,
-                                              size: 22,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const Expanded(
-                                      child: FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              Icons.add_road,
-                                              color: _cyan,
-                                              size: 24,
-                                            ),
-                                            SizedBox(width: 8),
-                                            Text(
-                                              'Create New Trip',
-                                              style: TextStyle(
-                                                fontSize: 22,
-                                                fontWeight: FontWeight.w800,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+              bottom: _step == 1,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 540),
+                  child: Column(
+                    children: [
+                      _header(),
+                      Expanded(
+                        child: _step == 1
+                            ? _stepOne(vm)
+                            : _stepTwo(
+                                state,
+                                draft.friendIds.length,
+                                stops,
+                                markers,
                               ),
-                              const SizedBox(height: 6),
-                              _TripCard(
-                                height: 126,
-                                title: 'Trip Basics',
-                                icon: Icons.assignment_outlined,
-                                child: Column(
-                                  children: [
-                                    _LabeledRow(
-                                      label: 'Trip Name',
-                                      child: TextField(
-                                        key: ValueKey(
-                                          'trip-title-${draft.editingId}',
-                                        ),
-                                        controller: _name,
-                                        onChanged: vm.setTitle,
-                                        style: const TextStyle(
-                                          fontSize: 12,
-                                          color: Colors.white,
-                                        ),
-                                        decoration: _input(
-                                          'Enter trip name (e.g., Northern Explorer)',
-                                          icon: Icons.edit_outlined,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    _LabeledRow(
-                                      label: 'Start Date',
-                                      child: _Selector(
-                                        key: const ValueKey('trip-start-date'),
-                                        label: draft.startDate == null
-                                            ? 'Select start date'
-                                            : DateFormat('dd MMM yyyy')
-                                                  .format(draft.startDate!),
-                                        icon: Icons.calendar_month_outlined,
-                                        onTap: () => _date(start: true),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 3),
-                                    _LabeledRow(
-                                      label: 'End Date',
-                                      child: _Selector(
-                                        key: const ValueKey('trip-end-date'),
-                                        label: draft.endDate == null
-                                            ? 'Select end date'
-                                            : DateFormat('dd MMM yyyy')
-                                                  .format(draft.endDate!),
-                                        icon: Icons.calendar_month_outlined,
-                                        onTap: () => _date(start: false),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _TripCard(
-                                height: 192,
-                                title: 'Route Builder',
-                                icon: Icons.route_outlined,
-                                action: InkWell(
-                                  key: const ValueKey('trip-edit-route'),
-                                  onTap: () =>
-                                      showTripRouteEditor(context, ref),
-                                  child: const Tooltip(
-                                    message: 'Edit and reorder route',
-                                    child: Icon(
-                                      Icons.edit_road,
-                                      size: 19,
-                                      color: _cyan,
-                                    ),
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Expanded(
-                                      child: Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              children: [
-                                                _Selector(
-                                                  key: const ValueKey(
-                                                    'trip-start-location',
-                                                  ),
-                                                  label: stops.isEmpty
-                                                      ? 'Start Location'
-                                                      : stops.first,
-                                                  icon: Icons.search,
-                                                  onTap: () => _location(
-                                                    'Start Location',
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                _Selector(
-                                                  key: const ValueKey(
-                                                    'trip-add-place',
-                                                  ),
-                                                  label:
-                                                      _pendingPlace ??
-                                                      'Add Place',
-                                                  icon: Icons.search,
-                                                  onTap: () =>
-                                                      _location('Add Place'),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                SizedBox(
-                                                  height: 28,
-                                                  child: _GlowButton(
-                                                    key: const ValueKey(
-                                                      'trip-add-stop',
-                                                    ),
-                                                    label: 'Add Stop',
-                                                    icon: Icons.add,
-                                                    onPressed: _addStop,
-                                                    small: true,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                _Selector(
-                                                  key: const ValueKey(
-                                                    'trip-end-location',
-                                                  ),
-                                                  label: stops.length < 2
-                                                      ? 'End Location'
-                                                      : stops.last,
-                                                  icon: Icons.search,
-                                                  onTap: () =>
-                                                      _location('End Location'),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                              child: TripRouteMap(
-                                                stops: markers,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    const SizedBox(height: 5),
-                                    SizedBox(
-                                      height: 27,
-                                      child: stops.isEmpty
-                                          ? const Align(
-                                              alignment: Alignment.centerLeft,
-                                              child: Text(
-                                                'Select your start and end locations',
-                                                style: TextStyle(
-                                                  fontSize: 11,
-                                                  color: Color(0xFFB6CDDA),
-                                                ),
-                                              ),
-                                            )
-                                          : Row(
-                                              children: [
-                                                for (
-                                                  var i = 0;
-                                                  i <
-                                                      math.min(
-                                                        stops.length,
-                                                        stops.length > 4
-                                                            ? 3
-                                                            : 4,
-                                                      );
-                                                  i++
-                                                ) ...[
-                                                  if (i > 0)
-                                                    const Icon(
-                                                      Icons.chevron_right,
-                                                      color: _cyan,
-                                                      size: 12,
-                                                    ),
-                                                  Expanded(
-                                                    child: _StopChip(
-                                                      index: i,
-                                                      name: stops[i],
-                                                      edit: () => _location(
-                                                        'Edit stop ${i + 1}',
-                                                        index: i,
-                                                      ),
-                                                      action: (action) {
-                                                        if (action == 'edit') {
-                                                          _location(
-                                                            'Edit stop ${i + 1}',
-                                                            index: i,
-                                                          );
-                                                        } else if (action ==
-                                                            'remove') {
-                                                          vm.removeStop(i);
-                                                        } else {
-                                                          vm.moveStop(
-                                                            i,
-                                                            action == 'up'
-                                                                ? -1
-                                                                : 1,
-                                                          );
-                                                        }
-                                                      },
-                                                      canRemove:
-                                                          i > 0 &&
-                                                          i < stops.length - 1,
-                                                      canUp: i > 0,
-                                                      canDown:
-                                                          i < stops.length - 1,
-                                                    ),
-                                                  ),
-                                                ],
-                                                if (stops.length > 4)
-                                                  TextButton(
-                                                    onPressed: () =>
-                                                        showTripRouteEditor(
-                                                          context,
-                                                          ref,
-                                                        ),
-                                                    style: TextButton.styleFrom(
-                                                      padding:
-                                                          const EdgeInsets.symmetric(
-                                                            horizontal: 4,
-                                                          ),
-                                                      minimumSize: Size.zero,
-                                                    ),
-                                                    child: Text(
-                                                      '+${stops.length - 3}',
-                                                      style: const TextStyle(
-                                                        fontSize: 11,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _TripCard(
-                                height: 144,
-                                title: 'Suggested Trip Plans',
-                                icon: Icons.lightbulb_outline,
-                                action: InkWell(
-                                  key: const ValueKey('trip-previous-plans'),
-                                  onTap: () => context.go('/traveller/reuse'),
-                                  child: const Tooltip(
-                                    message: 'Previous Traveller Plan',
-                                    child: Icon(
-                                      Icons.history,
-                                      size: 19,
-                                      color: _cyan,
-                                    ),
-                                  ),
-                                ),
-                                child: Column(
-                                  children: [
-                                    for (
-                                      var i = 0;
-                                      i < state.catalog.suggestions.length;
-                                      i++
-                                    ) ...[
-                                      if (i > 0) const SizedBox(height: 4),
-                                      Expanded(
-                                        child: _SuggestionCard(
-                                          idea: state.catalog.suggestions[i],
-                                          use: () => context.push(
-                                            '/traveller/suggestion/${Uri.encodeComponent(state.catalog.suggestions[i].id)}',
-                                          ),
-                                          edit: () => _idea(
-                                            state.catalog.suggestions[i],
-                                            edit: true,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              _TripCard(
-                                height: 82,
-                                title: 'Travel Details',
-                                icon: Icons.directions_car_outlined,
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: _DetailField(
-                                        label: 'Budget',
-                                        icon: Icons.payments_outlined,
-                                        selector: _Selector(
-                                          key: const ValueKey('trip-budget'),
-                                          label: draft.budget <= 0
-                                              ? 'Select / enter LKR'
-                                              : 'LKR ${_money.format(draft.budget)}',
-                                          onTap: () => _number(people: false),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _DetailField(
-                                        label: 'Vehicle',
-                                        icon: Icons.directions_car_outlined,
-                                        selector: _Selector(
-                                          key: const ValueKey('trip-vehicle'),
-                                          label: draft.vehicle,
-                                          onTap: _vehicle,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: _DetailField(
-                                        label: 'People Count',
-                                        icon: Icons.groups_outlined,
-                                        selector: _Selector(
-                                          key: const ValueKey('trip-people'),
-                                          label:
-                                              '${draft.people} ${draft.people == 1 ? 'person' : 'people'}',
-                                          onTap: () => _number(people: true),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              SizedBox(
-                                height: 46,
-                                child: _GlowButton(
-                                  key: const ValueKey('trip-ai'),
-                                  label: 'AI Trip Plane',
-                                  icon: Icons.auto_awesome_outlined,
-                                  ai: true,
-                                  onPressed: _ai,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              SizedBox(
-                                height: 46,
-                                child: _GlowButton(
-                                  key: const ValueKey('trip-submit'),
-                                  label: _submitting
-                                      ? 'Saving…'
-                                      : 'Submit Trip',
-                                  icon: Icons.send_outlined,
-                                  onPressed: _submitting ? null : _submit,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
@@ -759,88 +328,691 @@ class _TripBuilderScreenState extends ConsumerState<TripBuilderScreen> {
       ),
     );
   }
+
+  Widget _header() => Padding(
+    padding: const EdgeInsets.fromLTRB(18, 12, 18, 7),
+    child: Column(
+      children: [
+        Row(
+          children: [
+            IconButton.filledTonal(
+              tooltip: _step == 1 ? 'Back to Traveller' : 'Back to dates',
+              onPressed: _back,
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              style: IconButton.styleFrom(
+                backgroundColor: const Color(0xAA003448),
+                side: const BorderSide(color: _cyan),
+              ),
+            ),
+            const Expanded(
+              child: Center(
+                child: Text(
+                  'WAYHUNTER',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 20,
+                    letterSpacing: 2.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 48),
+          ],
+        ),
+        const SizedBox(height: 7),
+        Row(
+          children: [
+            Text(
+              'Step $_step of 2',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: LinearProgressIndicator(
+                  value: _step / 2,
+                  minHeight: 7,
+                  backgroundColor: const Color(0x606E9DAB),
+                  valueColor: const AlwaysStoppedAnimation<Color>(_cyan),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  Widget _stepOne(TravellerViewModel vm) {
+    return Column(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _ScreenHeading('Create New Trip'),
+                const SizedBox(height: 18),
+                _GlassSection(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Trip Name',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        key: const ValueKey('trip-title-step1'),
+                        controller: _name,
+                        onChanged: vm.setTitle,
+                        textCapitalization: TextCapitalization.words,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          color: Colors.white,
+                        ),
+                        decoration: _fieldDecoration(
+                          'Enter trip name (e.g., Northern Explorer)',
+                          Icons.edit_outlined,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _GlassSection(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const _SectionTitle(
+                        Icons.calendar_month_outlined,
+                        'Select Dates',
+                      ),
+                      const SizedBox(height: 13),
+                      const Divider(color: Color(0x446AE9FF), height: 1),
+                      const SizedBox(height: 16),
+                      _calendarHeading(),
+                      const SizedBox(height: 12),
+                      _monthCalendar(_visibleMonth),
+                      const SizedBox(height: 22),
+                      Text(
+                        DateFormat('MMMM yyyy').format(
+                          DateTime(_visibleMonth.year, _visibleMonth.month + 1),
+                        ),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _monthCalendar(
+                        DateTime(_visibleMonth.year, _visibleMonth.month + 1),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 9, 16, 15),
+          child: Column(
+            children: [
+              _GlassSection(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 11,
+                  horizontal: 15,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.date_range, color: _cyan, size: 22),
+                    const SizedBox(width: 9),
+                    Flexible(
+                      child: Text(
+                        _rangeLabel(),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 11),
+              _GradientButton(
+                key: const ValueKey('trip-continue'),
+                text: 'Continue',
+                icon: Icons.arrow_forward_rounded,
+                onPressed: _continueToRoute,
+                height: 54,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _calendarHeading() => Row(
+    children: [
+      _calendarArrow(
+        Icons.chevron_left,
+        () => setState(
+          () => _visibleMonth = DateTime(
+            _visibleMonth.year,
+            _visibleMonth.month - 1,
+          ),
+        ),
+      ),
+      Expanded(
+        child: Text(
+          DateFormat('MMMM yyyy').format(_visibleMonth),
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+        ),
+      ),
+      _calendarArrow(
+        Icons.chevron_right,
+        () => setState(
+          () => _visibleMonth = DateTime(
+            _visibleMonth.year,
+            _visibleMonth.month + 1,
+          ),
+        ),
+      ),
+    ],
+  );
+
+  Widget _calendarArrow(IconData icon, VoidCallback onTap) =>
+      IconButton.filledTonal(
+        onPressed: onTap,
+        icon: Icon(icon, color: Colors.white),
+        style: IconButton.styleFrom(backgroundColor: const Color(0x88234D61)),
+      );
+
+  Widget _monthCalendar(DateTime month) {
+    const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    final startOffset = DateTime(month.year, month.month, 1).weekday % 7;
+    final count = DateUtils.getDaysInMonth(month.year, month.month);
+    final total = ((startOffset + count + 6) ~/ 7) * 7;
+    final today = _dateOnly(DateTime.now());
+    return Column(
+      children: [
+        Row(
+          children: [
+            for (final name in names)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    name,
+                    style: const TextStyle(
+                      color: Color(0xFFBACBD6),
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 7),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisSpacing: 3,
+            crossAxisSpacing: 3,
+            childAspectRatio: 1,
+          ),
+          itemCount: total,
+          itemBuilder: (context, index) {
+            final number = index - startOffset + 1;
+            if (number < 1 || number > count) return const SizedBox();
+            final date = DateTime(month.year, month.month, number);
+            final boundary =
+                _sameDay(_rangeStart, date) || _sameDay(_rangeEnd, date);
+            final middle =
+                _rangeStart != null &&
+                _rangeEnd != null &&
+                date.isAfter(_rangeStart!) &&
+                date.isBefore(_rangeEnd!);
+            final past = date.isBefore(today);
+            return Semantics(
+              button: true,
+              selected: boundary || middle,
+              label: DateFormat('dd MMMM yyyy').format(date),
+              child: InkWell(
+                key: ValueKey('trip-date-${month.year}-${month.month}-$number'),
+                onTap: past ? null : () => _chooseDay(date),
+                borderRadius: BorderRadius.circular(99),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: boundary
+                        ? _cyan
+                        : middle
+                        ? _cyan.withValues(alpha: .22)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(99),
+                    border: _sameDay(today, date)
+                        ? Border.all(color: _mint, width: 1.3)
+                        : null,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '$number',
+                      style: TextStyle(
+                        color: past
+                            ? Colors.white38
+                            : boundary
+                            ? const Color(0xFF002D3A)
+                            : Colors.white,
+                        fontWeight: boundary
+                            ? FontWeight.w900
+                            : FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  String _rangeLabel() {
+    if (_rangeStart == null) return 'Select a start and end date';
+    if (_rangeEnd == null) {
+      return '${DateFormat('dd MMM yyyy').format(_rangeStart!)} · Choose end date';
+    }
+    final sameYear = _rangeStart!.year == _rangeEnd!.year;
+    return '${DateFormat(sameYear ? 'dd MMM' : 'dd MMM yyyy').format(_rangeStart!)}'
+        ' – ${DateFormat('dd MMM yyyy').format(_rangeEnd!)}';
+  }
+
+  Widget _stepTwo(
+    TravellerState state,
+    int friendCount,
+    List<String> stops,
+    List<TravellerMapMarker> markers,
+  ) {
+    return SingleChildScrollView(
+      key: const PageStorageKey('create-trip-step2-scroll'),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _ScreenHeading('Create New Trip'),
+          const SizedBox(height: 17),
+          _GlassSection(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: _SectionTitle(
+                        Icons.route_outlined,
+                        'Route Builder',
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('trip-edit-route'),
+                      tooltip: 'Edit and reorder route',
+                      onPressed: () => showTripRouteEditor(context, ref),
+                      icon: const Icon(Icons.edit_road_outlined, color: _cyan),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                LayoutBuilder(
+                  builder: (context, box) {
+                    // Real map is preserved; use a compact two-column layout on phones.
+                    final mapWidth = math.max(112.0, box.maxWidth * .43);
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _RoutePicker(
+                                key: const ValueKey('trip-start-location'),
+                                label: stops.isEmpty
+                                    ? 'Start Place'
+                                    : stops.first,
+                                icon: Icons.place_outlined,
+                                onTap: () => _location('Start Location'),
+                              ),
+                              const SizedBox(height: 8),
+                              _RoutePicker(
+                                key: const ValueKey('trip-add-place'),
+                                label: _pendingPlace ?? 'Add Place',
+                                icon: Icons.add_location_alt_outlined,
+                                onTap: () => _location('Add Place'),
+                              ),
+                              const SizedBox(height: 8),
+                              _RoutePicker(
+                                key: const ValueKey('trip-end-location'),
+                                label: stops.length < 2
+                                    ? 'End Place'
+                                    : stops.last,
+                                icon: Icons.flag_outlined,
+                                onTap: () => _location('End Location'),
+                              ),
+                              const SizedBox(height: 9),
+                              _GradientButton(
+                                key: const ValueKey('trip-add-stop'),
+                                text: 'Add Stop',
+                                icon: Icons.add_rounded,
+                                onPressed: _addStop,
+                                height: 38,
+                                fontSize: 13,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: mapWidth,
+                          height: 202,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(15),
+                            child: TripRouteMap(stops: markers),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Select your route stops',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFFC9E4EC),
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      key: const ValueKey('trip-pick-on-map'),
+                      onPressed: () => _location('Add Place'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 11),
+                        side: const BorderSide(color: _cyan),
+                        minimumSize: const Size(0, 38),
+                        shape: const StadiumBorder(),
+                      ),
+                      icon: const Icon(Icons.map_outlined, size: 17),
+                      label: const Text(
+                        'Pick on map',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (stops.length > 2) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    '${stops.length - 2} stop(s) added · Tap edit to reorder',
+                    style: const TextStyle(
+                      color: Color(0xFFBDDCED),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          _GlassSection(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Expanded(
+                      child: _SectionTitle(
+                        Icons.lightbulb_outline,
+                        'Suggested Trip Plans',
+                      ),
+                    ),
+                    IconButton(
+                      key: const ValueKey('trip-previous-plans'),
+                      tooltip: 'Previous traveller plans',
+                      onPressed: () => context.go('/traveller/reuse'),
+                      icon: const Icon(Icons.history_rounded, color: _cyan),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                for (var i = 0; i < state.catalog.suggestions.length; i++) ...[
+                  if (i > 0)
+                    const Divider(color: Color(0x446AE9FF), height: 17),
+                  _SuggestionTile(
+                    idea: state.catalog.suggestions[i],
+                    use: () => context.push(
+                      '/traveller/suggestion/${Uri.encodeComponent(state.catalog.suggestions[i].id)}',
+                    ),
+                    edit: () => _idea(state.catalog.suggestions[i], edit: true),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 15),
+          Row(
+            children: [
+              Expanded(
+                child: _GradientButton(
+                  key: const ValueKey('trip-ai'),
+                  text: 'AI Trip Plan',
+                  icon: Icons.auto_awesome_outlined,
+                  gradient: const [_purple, Color(0xFF0D75CF), _mint],
+                  height: 47,
+                  fontSize: 13,
+                  onPressed: _ai,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _GradientButton(
+                  key: const ValueKey('trip-add-friends'),
+                  text: friendCount == 0
+                      ? 'Add Friends'
+                      : 'Friends ($friendCount)',
+                  icon: Icons.group_add_outlined,
+                  gradient: const [Color(0xFF00669E), _cyan, _mint],
+                  height: 47,
+                  fontSize: 13,
+                  onPressed: _selectFriends,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 270),
+              child: _GradientButton(
+                key: const ValueKey('trip-submit'),
+                text: _submitting ? 'Saving…' : 'Submit Trip',
+                icon: Icons.send_outlined,
+                onPressed: _submitting ? null : _submit,
+                height: 50,
+                fontSize: 16,
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
+      ),
+    );
+  }
 }
 
-InputDecoration _input(String hint, {IconData? icon}) => InputDecoration(
+InputDecoration _fieldDecoration(String hint, IconData icon) => InputDecoration(
   hintText: hint,
-  hintStyle: const TextStyle(fontSize: 10, color: Color(0xFFD4E9F4)),
-  isDense: true,
-  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-  prefixIcon: icon == null ? null : Icon(icon, size: 14),
-  prefixIconConstraints: const BoxConstraints(minWidth: 26, minHeight: 24),
+  hintMaxLines: 1,
+  hintStyle: const TextStyle(color: Color(0xFFB8D5E1), fontSize: 13),
   filled: true,
-  fillColor: const Color(0x66307991),
+  fillColor: const Color(0x88305C70),
+  isDense: true,
+  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
+  prefixIcon: Icon(icon, color: const Color(0xFFCCF9FF), size: 21),
+  prefixIconConstraints: const BoxConstraints(minWidth: 42, minHeight: 45),
   border: OutlineInputBorder(
-    borderRadius: BorderRadius.circular(9),
-    borderSide: const BorderSide(color: Color(0xFF5795AA)),
+    borderRadius: BorderRadius.circular(15),
+    borderSide: const BorderSide(color: Color(0xFF6EDFF2)),
   ),
   enabledBorder: OutlineInputBorder(
-    borderRadius: BorderRadius.circular(9),
-    borderSide: const BorderSide(color: Color(0xFF5795AA)),
+    borderRadius: BorderRadius.circular(15),
+    borderSide: const BorderSide(color: Color(0xFF6EDFF2)),
+  ),
+  focusedBorder: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(15),
+    borderSide: const BorderSide(color: _cyan, width: 1.8),
   ),
 );
 
-class _LabeledRow extends StatelessWidget {
-  const _LabeledRow({required this.label, required this.child});
-  final String label;
-  final Widget child;
+class _ScreenHeading extends StatelessWidget {
+  const _ScreenHeading(this.title);
+  final String title;
+
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 28,
-    child: Row(
-      children: [
-        SizedBox(
-          width: 88,
-          child: Text(
-            label,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-          ),
-        ),
-        Expanded(child: child),
-      ],
+  Widget build(BuildContext context) => Text(
+    title,
+    style: const TextStyle(
+      color: Colors.white,
+      fontWeight: FontWeight.w900,
+      fontSize: 29,
+      letterSpacing: -.4,
     ),
   );
 }
 
-class _Selector extends StatelessWidget {
-  const _Selector({
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.icon, this.title);
+  final IconData icon;
+  final String title;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, color: _cyan, size: 25),
+      const SizedBox(width: 9),
+      Flexible(
+        child: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _GlassSection extends StatelessWidget {
+  const _GlassSection({
+    required this.child,
+    this.padding = const EdgeInsets.all(14),
+  });
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(22),
+    child: BackdropFilter(
+      filter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+      child: Container(
+        padding: padding,
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xE2044554), Color(0xE5031D2B)],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: const Color(0xFF56E9FF), width: 1.2),
+          boxShadow: [
+            BoxShadow(color: _cyan.withValues(alpha: .20), blurRadius: 14),
+          ],
+        ),
+        child: child,
+      ),
+    ),
+  );
+}
+
+class _RoutePicker extends StatelessWidget {
+  const _RoutePicker({
     super.key,
     required this.label,
+    required this.icon,
     required this.onTap,
-    this.icon,
   });
   final String label;
+  final IconData icon;
   final VoidCallback onTap;
-  final IconData? icon;
+
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 28,
-    child: Material(
-      color: const Color(0x66307991),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(9),
-        side: const BorderSide(color: Color(0xFF5795AA)),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(9),
+  Widget build(BuildContext context) => Material(
+    color: const Color(0xB1124354),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(13),
+      side: const BorderSide(color: Color(0xFF72D3E5)),
+    ),
+    child: InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(13),
+      child: SizedBox(
+        height: 47,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             children: [
-              if (icon != null) ...[
-                Icon(icon, size: 14, color: Colors.white),
-                const SizedBox(width: 6),
-              ],
+              Icon(icon, color: Colors.white, size: 18),
+              const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 11, color: Colors.white),
+                  style: const TextStyle(fontSize: 13, color: Colors.white),
                 ),
               ),
-              const Icon(Icons.expand_more, size: 15, color: Colors.white),
+              const Icon(Icons.expand_more, color: Colors.white, size: 16),
             ],
           ),
         ),
@@ -849,462 +1021,142 @@ class _Selector extends StatelessWidget {
   );
 }
 
-class _TripCard extends StatelessWidget {
-  const _TripCard({
-    required this.height,
-    required this.title,
+class _GradientButton extends StatelessWidget {
+  const _GradientButton({
+    super.key,
+    required this.text,
     required this.icon,
-    required this.child,
-    this.action,
+    required this.onPressed,
+    this.height = 48,
+    this.fontSize = 15,
+    this.gradient = const [Color(0xFF00BDE7), Color(0xFF00D8C1), _mint],
   });
-  final double height;
-  final String title;
+  final String text;
   final IconData icon;
-  final Widget child;
-  final Widget? action;
+  final VoidCallback? onPressed;
+  final double height, fontSize;
+  final List<Color> gradient;
+
   @override
   Widget build(BuildContext context) => Container(
     height: height,
-    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
     decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFF6BE8FF), width: 1),
-      gradient: const LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [Color(0xC9165A6B), Color(0xCC031725)],
-      ),
+      gradient: LinearGradient(colors: gradient),
+      borderRadius: BorderRadius.circular(40),
+      border: Border.all(color: const Color(0xFFC5FFFF), width: 1),
       boxShadow: [
-        BoxShadow(
-          color: _cyan.withValues(alpha: .22),
-          blurRadius: 8,
-          spreadRadius: 1,
-        ),
+        BoxShadow(color: _cyan.withValues(alpha: .25), blurRadius: 9),
       ],
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: 22,
-          child: Row(
-            children: [
-              Icon(icon, color: const Color(0xFF7AF6FF), size: 20),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              ?action,
-            ],
-          ),
-        ),
-        Expanded(child: child),
-      ],
-    ),
-  );
-}
-
-class _DetailField extends StatelessWidget {
-  const _DetailField({
-    required this.label,
-    required this.icon,
-    required this.selector,
-  });
-  final String label;
-  final IconData icon;
-  final Widget selector;
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      SizedBox(
-        height: 16,
+    child: Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(40),
+        onTap: onPressed,
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 13, color: Colors.white),
-            const SizedBox(width: 4),
-            Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  label,
-                  style: const TextStyle(fontSize: 11, color: Colors.white),
+            Icon(icon, size: fontSize + 6, color: Colors.white),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                text,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
                 ),
               ),
             ),
           ],
         ),
       ),
-      const SizedBox(height: 2),
-      selector,
-    ],
-  );
-}
-
-class _GlowButton extends StatelessWidget {
-  const _GlowButton({
-    super.key,
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-    this.ai = false,
-    this.small = false,
-  });
-  final String label;
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final bool ai, small;
-  @override
-  Widget build(BuildContext context) => DecoratedBox(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(30),
-      gradient: LinearGradient(
-        colors: ai
-            ? const [Color(0xFFAC28EE), Color(0xFF1566B6), Color(0xFF00D98B)]
-            : const [Color(0xFF00C7F2), Color(0xFF008EAB), Color(0xFF00DB8D)],
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: (ai ? const Color(0xFF9471FF) : _cyan).withValues(alpha: .45),
-          blurRadius: small ? 7 : 13,
-          spreadRadius: 1,
-        ),
-      ],
-    ),
-    child: FilledButton(
-      onPressed: onPressed,
-      style: FilledButton.styleFrom(
-        backgroundColor: Colors.transparent,
-        disabledBackgroundColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        padding: EdgeInsets.symmetric(horizontal: small ? 4 : 16),
-        minimumSize: Size.zero,
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: const StadiumBorder(
-          side: BorderSide(color: Color(0xFFC2FFFF), width: 1.1),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: small ? 13 : 23),
-          SizedBox(width: small ? 3 : 10),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              style: TextStyle(
-                fontFamily: 'Roboto',
-                fontSize: small ? 11 : 18,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-          if (!small) ...[
-            const SizedBox(width: 12),
-            const Icon(Icons.arrow_forward, size: 22),
-          ],
-        ],
-      ),
     ),
   );
 }
 
-class _StopChip extends StatelessWidget {
-  const _StopChip({
-    required this.index,
-    required this.name,
-    required this.edit,
-    required this.action,
-    required this.canRemove,
-    required this.canUp,
-    required this.canDown,
-  });
-  final int index;
-  final String name;
-  final VoidCallback edit;
-  final ValueChanged<String> action;
-  final bool canRemove, canUp, canDown;
-  @override
-  Widget build(BuildContext context) => Material(
-    color: const Color(0x9903293A),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(8),
-      side: const BorderSide(color: _cyan),
-    ),
-    child: InkWell(
-      key: ValueKey('trip-stop-chip-$index'),
-      onTap: edit,
-      child: Row(
-        children: [
-          const SizedBox(width: 3),
-          CircleAvatar(
-            radius: 8,
-            backgroundColor: const Color(0xFF5BFFF1),
-            child: Text(
-              '${index + 1}',
-              style: const TextStyle(fontSize: 9, color: Colors.black),
-            ),
-          ),
-          const SizedBox(width: 3),
-          Expanded(
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 9, color: Colors.white),
-            ),
-          ),
-          PopupMenuButton<String>(
-            tooltip: 'Actions for stop ${index + 1}',
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 170),
-            iconSize: 12,
-            icon: const Icon(Icons.more_vert),
-            style: IconButton.styleFrom(
-              minimumSize: const Size(16, 25),
-              maximumSize: const Size(16, 25),
-              padding: EdgeInsets.zero,
-            ),
-            onSelected: action,
-            itemBuilder: (_) => [
-              const PopupMenuItem(value: 'edit', child: Text('Edit stop')),
-              if (canUp)
-                const PopupMenuItem(value: 'up', child: Text('Move earlier')),
-              if (canDown)
-                const PopupMenuItem(value: 'down', child: Text('Move later')),
-              if (canRemove)
-                const PopupMenuItem(
-                  value: 'remove',
-                  child: Text('Remove stop'),
-                ),
-            ],
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _SuggestionCard extends StatelessWidget {
-  const _SuggestionCard({
+class _SuggestionTile extends StatelessWidget {
+  const _SuggestionTile({
     required this.idea,
     required this.use,
     required this.edit,
   });
   final TripSuggestion idea;
   final VoidCallback use, edit;
+
   @override
   Widget build(BuildContext context) => Row(
     children: [
       ClipRRect(
-        borderRadius: BorderRadius.circular(9),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Image.asset(
-              idea.thumbnailAsset,
-              width: 43,
-              height: 49,
-              fit: BoxFit.cover,
-            ),
-            const Icon(Icons.route, color: Color(0xFF75FFF0), size: 25),
-          ],
+        borderRadius: BorderRadius.circular(12),
+        child: Image.asset(
+          idea.thumbnailAsset,
+          width: 60,
+          height: 83,
+          fit: BoxFit.cover,
         ),
       ),
-      const SizedBox(width: 6),
+      const SizedBox(width: 9),
       Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Tooltip(
-              message: idea.plan.title,
-              child: Text(
-                idea.plan.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: Colors.white,
-                ),
-              ),
+            Text(
+              idea.plan.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 2),
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 7,
-                  backgroundImage: idea.avatarAsset == null
-                      ? null
-                      : AssetImage(idea.avatarAsset!),
-                  child: idea.avatarAsset == null
-                      ? Text(
-                          idea.author
-                              .split(' ')
-                              .map((p) => p[0])
-                              .take(2)
-                              .join(),
-                          style: const TextStyle(fontSize: 7),
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    'by ${idea.author}',
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontSize: 9,
-                      color: Color(0xFFD6EBF4),
-                    ),
-                  ),
-                ),
-              ],
+            const SizedBox(height: 4),
+            Text(
+              'by ${idea.author}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: Color(0xFFC9E4EB)),
             ),
-            const SizedBox(height: 3),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'LKR ${_money.format(idea.plan.budget)}   •   ${idea.plan.vehicle}   •   ${idea.plan.people} People',
-                style: const TextStyle(fontSize: 9, color: Colors.white),
-              ),
+            const SizedBox(height: 5),
+            Text(
+              'LKR ${_money.format(idea.plan.budget)} · '
+              '${idea.plan.vehicle} · ${idea.plan.people} People',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 10.5, color: Color(0xFFDBF2F8)),
             ),
           ],
         ),
       ),
-      const SizedBox(width: 5),
+      const SizedBox(width: 7),
       SizedBox(
-        width: 70,
+        width: 89,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             SizedBox(
-              height: 22,
-              width: 70,
-              child: _GlowButton(
+              height: 35,
+              child: _GradientButton(
                 key: ValueKey('use-${idea.id}'),
-                label: 'Use Idea',
-                icon: Icons.arrow_forward,
+                text: 'Use Plan',
+                icon: Icons.arrow_forward_rounded,
                 onPressed: use,
-                small: true,
+                fontSize: 10.5,
+                height: 35,
               ),
             ),
-            SizedBox(
-              height: 23,
-              child: TextButton.icon(
-                key: ValueKey('edit-${idea.id}'),
-                onPressed: edit,
-                icon: const Icon(Icons.edit_outlined, size: 12),
-                label: const Text('Edit Idea'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  minimumSize: Size.zero,
-                  textStyle: const TextStyle(
-                    fontFamily: 'Roboto',
-                    fontSize: 10,
-                  ),
-                ),
+            TextButton.icon(
+              key: ValueKey('edit-${idea.id}'),
+              onPressed: edit,
+              style: TextButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: Colors.white,
               ),
+              icon: const Icon(Icons.edit_outlined, size: 13),
+              label: const Text('Edit Plan', style: TextStyle(fontSize: 10.5)),
             ),
           ],
         ),
-      ),
-    ],
-  );
-}
-
-class _NumberDialog extends StatefulWidget {
-  const _NumberDialog({
-    required this.people,
-    required this.initial,
-    required this.presets,
-  });
-  final bool people;
-  final num initial;
-  final List<double> presets;
-  @override
-  State<_NumberDialog> createState() => _NumberDialogState();
-}
-
-class _NumberDialogState extends State<_NumberDialog> {
-  final _form = GlobalKey<FormState>();
-  late final _controller = TextEditingController(
-    text: widget.initial > 0 ? widget.initial.toStringAsFixed(0) : '',
-  );
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.people ? 'People Count' : 'Budget (LKR)'),
-    content: SingleChildScrollView(
-      child: Form(
-        key: _form,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (widget.presets.isNotEmpty)
-              Wrap(
-                spacing: 6,
-                children: [
-                  for (final amount in widget.presets)
-                    ActionChip(
-                      label: Text(_money.format(amount)),
-                      onPressed: () =>
-                          _controller.text = amount.toStringAsFixed(0),
-                    ),
-                ],
-              ),
-            TextFormField(
-              key: const ValueKey('trip-number-input'),
-              controller: _controller,
-              keyboardType: TextInputType.numberWithOptions(
-                decimal: !widget.people,
-              ),
-              decoration: InputDecoration(
-                labelText: widget.people ? 'Travellers' : 'LKR',
-              ),
-              validator: (text) {
-                final value = widget.people
-                    ? int.tryParse(text ?? '')
-                    : double.tryParse(text ?? '');
-                return value == null || !value.isFinite || value <= 0
-                    ? 'Enter a positive ${widget.people ? 'whole number' : 'budget'}.'
-                    : null;
-              },
-            ),
-          ],
-        ),
-      ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () {
-          if (_form.currentState!.validate()) {
-            Navigator.pop(context, num.parse(_controller.text));
-          }
-        },
-        child: const Text('Apply'),
       ),
     ],
   );
@@ -1312,6 +1164,7 @@ class _NumberDialogState extends State<_NumberDialog> {
 
 class _TripNavigation extends StatelessWidget {
   const _TripNavigation();
+
   @override
   Widget build(BuildContext context) => SafeArea(
     top: false,
@@ -1323,7 +1176,7 @@ class _TripNavigation extends StatelessWidget {
         child: NavigationBar(
           height: 68,
           selectedIndex: 1,
-          backgroundColor: const Color(0xD8071D2A),
+          backgroundColor: const Color(0xE8071D2A),
           indicatorColor: _cyan.withValues(alpha: .22),
           onDestinationSelected: (i) => context.go(switch (i) {
             0 => '/home',

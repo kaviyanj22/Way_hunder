@@ -2,6 +2,7 @@ import 'package:go_router/go_router.dart';
 
 import '../views/game_zone_screen.dart';
 import '../views/game_flow_screens.dart';
+import '../views/game_current_district_screen.dart';
 
 /// Complete local-only Game navigation, separate from Traveller and Hunter.
 final gameRoutes = <RouteBase>[
@@ -29,7 +30,7 @@ final gameRoutes = <RouteBase>[
   GoRoute(path: '/game/play', builder: (_, _) => const GamePlayScreen()),
   GoRoute(
     path: '/game/district',
-    builder: (_, _) => const GameDistrictScreen(),
+    builder: (_, _) => const GameCurrentDistrictScreen(),
   ),
   GoRoute(
     path: '/game/challenges',

@@ -11,6 +11,7 @@ import '../features/home/presentation/views/home_screen.dart';
 import '../features/games/presentation/providers/game_routes.dart';
 import '../features/hunter/presentation/providers/hunter_routes.dart';
 import '../features/profile/presentation/views/profile_dashboard_screen.dart';
+import '../features/friends/presentation/providers/friends_routes.dart';
 import '../features/traveller/presentation/providers/traveller_routes.dart';
 import '../features/wallet/presentation/providers/wallet_routes.dart';
 
@@ -101,6 +102,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/home', builder: (_, _) => const HomeScreen()),
       ...travellerRoutes,
+      ...friendsRoutes,
       ...hunterRoutes,
       ...gameRoutes,
       GoRoute(
